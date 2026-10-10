@@ -38,16 +38,22 @@ The probe reads the classic menu. On Windows 11 that is the menu behind "Show mo
 Each change you make becomes an `ItemRule`:
 
 - **What it targets:** the item's title, and the submenu it sits in if any.
-- **Where it applies:** a scope, which is everything, one kind of target, or one file extension.
-- **What it does:** hide, rename, move into a named submenu, or pin to the top or bottom.
+- **Where it applies:** a scope, which is everything, one kind of target, or one file extension, optionally limited to one selected thing or to several.
+- **What it does:** hide, rename, move into a named submenu, pin to the top or bottom, or sit just above or below a named neighbour.
+
+An item you add yourself is a `NewItem`: a title, a program, its arguments, a scope and a position.
 
 Titles are compared the way the engine compares them: without accelerator markers, shortcut text or trailing dots, and ignoring case. `EngineName` holds that logic and mirrors the engine's own.
 
-All rules together form a `Profile`, saved as JSON.
+All rules and new items together form a `Profile`, saved as JSON.
+
+### Why moved items name a neighbour
+
+The engine can place an item at a numbered row, but a row number goes stale as soon as another change adds or removes a row above it. It can also place an item relative to another one found by title, and that is what the editor uses. When you press ▲ or ▼, the editor tries sitting above and below each other item in the menu, runs the preview for each, and keeps the choice that lands on the row you asked for.
 
 ## The preview
 
-`MenuPreview` applies a profile to a menu the probe read and follows the engine's ordering: items pinned to the top, then the rest in their original order with new submenus placed at the separator nearest the middle, then items pinned to the bottom. It is a model of the engine, not the engine, so the real menu can differ in small ways.
+`MenuPreview` applies a profile to a menu the probe read and follows the engine's ordering: items pinned to the top, then the rest in their original order with added items and submenus placed at the separator nearest the middle, then items pinned to the bottom. Items placed next to a neighbour are inserted last, one at a time and in their original order. It is a model of the engine, not the engine, so the real menu can differ in small ways.
 
 ## The engine config
 
@@ -60,6 +66,11 @@ Changing Explorer's menu at runtime means running code inside Explorer. RCConfig
 | Rename and pin to top | `modify(type='*' find="\"open with code\"" title="VS Code" pos="top")` |
 | Move into a submenu | `menu(mode="multiple" title="Extras") { }` and `modify(type='*' find="\"share\"" menu="Extras")` |
 | An item inside a submenu | `modify(type='dir' in="7-zip/crc sha" find="\"md5\"" vis=vis.remove)` |
+| Move "Delete" to just below "Copy" | `modify(type='*' find="\"delete\"" pos=indexof("\"copy\"", 1))` |
+| Only when several files are selected | `modify(type='file' where=sel.count>1 find="\"print\"" vis=vis.remove)` |
+| A new item | `item(type='file' mode="multiple" title="Open in my editor" cmd="C:\\Tools\\editor.exe" args="\"" + sel.path + "\"" invoke="multiple")` |
+
+The arguments of a new item are written as quoted pieces joined to `sel.path`, so nothing you type is evaluated as an engine expression.
 
 Rules with a wider scope are written first, so narrower rules override them.
 

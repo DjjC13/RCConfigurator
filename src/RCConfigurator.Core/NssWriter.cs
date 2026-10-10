@@ -30,15 +30,9 @@ public static class NssWriter
         if (options.ThemeFile is not null) nss.AppendLine($"import {Quote(options.ThemeFile)}");
         if (options.ImagesFile is not null) nss.AppendLine($"import {Quote(options.ImagesFile)}");
 
-        var active = profile.Rules.Where(r => !r.HasNoEffect).ToList();
-
-        // A moved item only appears if a submenu with that name exists, so declare each one.
-        // The engine drops a declared submenu that ends up empty.
-        var groups = active
-            .Where(r => !r.Hidden && r.Group is not null)
-            .Select(r => r.Group!)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        // A moved item only appears if a submenu with that name exists, so declare each one,
+        // with the new items that belong in it. The engine drops a submenu that ends up empty.
+        var groups = profile.Groups;
         if (groups.Count > 0)
         {
             nss.AppendLine();
@@ -46,28 +40,39 @@ public static class NssWriter
             {
                 nss.AppendLine($"menu(mode=\"multiple\" title={Quote(group)})");
                 nss.AppendLine("{");
+                foreach (var item in profile.Items.Where(i => IsIn(i, group))) nss.AppendLine("\t" + WriteItem(item));
                 nss.AppendLine("}");
             }
         }
 
+        var ungrouped = profile.Items.Where(i => i.Group is null).ToList();
+        if (ungrouped.Count > 0)
+        {
+            nss.AppendLine();
+            foreach (var item in ungrouped) nss.AppendLine(WriteItem(item));
+        }
+
+        var active = profile.Rules.Where(r => !r.HasNoEffect).ToList();
         if (active.Count > 0)
         {
             nss.AppendLine();
             // Later rules win, so write the widest scopes first.
-            foreach (var rule in active.OrderBy(Profile.Specificity))
-            {
-                nss.AppendLine(WriteRule(rule));
-            }
+            foreach (var rule in active.OrderBy(r => r.Scope.Specificity)) nss.AppendLine(WriteRule(rule));
         }
 
         return nss.ToString();
     }
 
+    private static bool IsIn(NewItem item, string group) =>
+        string.Equals(item.Group, group, StringComparison.OrdinalIgnoreCase);
+
     private static string WriteRule(ItemRule rule)
     {
         var parts = new List<string> { $"type='{TypeOf(rule.Scope)}'" };
+        if (rule.Scope.Count == SelectionCount.One) parts.Add("mode=\"single\"");
 
         var conditions = new List<string>();
+        if (rule.Scope.Count == SelectionCount.Several) conditions.Add("sel.count>1");
         if (rule.Scope is { Kind: ScopeKind.File, Extension: not null })
         {
             conditions.Add($"sel.file.ext=={Quote(rule.Scope.Extension)}");
@@ -93,12 +98,46 @@ public static class NssWriter
         {
             if (rule.NewTitle is not null) parts.Add($"title={Quote(rule.NewTitle)}");
             if (rule.Group is not null) parts.Add($"menu={Quote(rule.Group)}");
-            if (rule.Placement == Placement.Top) parts.Add("pos=\"top\"");
-            if (rule.Placement == Placement.Bottom) parts.Add("pos=\"bottom\"");
+            if (PositionOf(rule.Placement, rule.Anchor, rule.AfterAnchor) is { } position) parts.Add(position);
         }
 
         return $"modify({string.Join(' ', parts)})";
     }
+
+    private static string WriteItem(NewItem item)
+    {
+        var parts = new List<string> { $"type='{TypeOf(item.Scope)}'" };
+
+        // New items show for a single selection unless told otherwise. With several things
+        // selected, run the program once for each of them.
+        var severalAllowed = item.Scope.Count != SelectionCount.One;
+        parts.Add(severalAllowed ? "mode=\"multiple\"" : "mode=\"single\"");
+        if (item.Scope.Count == SelectionCount.Several) parts.Add("where=sel.count>1");
+        if (item.Scope is { Kind: ScopeKind.File, Extension: not null }) parts.Add($"find={Quote(item.Scope.Extension)}");
+
+        parts.Add($"title={Quote(item.Title)}");
+        if (item.Program.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) parts.Add($"image={Quote(item.Program)}");
+        parts.Add($"cmd={Quote(item.Program)}");
+        if (item.Arguments.Trim().Length > 0) parts.Add($"args={ArgumentsOf(item.Arguments.Trim())}");
+        if (severalAllowed) parts.Add("invoke=\"multiple\"");
+        if (PositionOf(item.Placement, anchor: null, after: false) is { } position) parts.Add(position);
+
+        return $"item({string.Join(' ', parts)})";
+    }
+
+    /// <summary>Joins the literal parts of the arguments with the selected path, so nothing the user typed is evaluated.</summary>
+    private static string ArgumentsOf(string arguments) => string.Join(
+        " + sel.path + ",
+        arguments.Split(NewItem.PathPlaceholder).Select(Quote));
+
+    private static string? PositionOf(Placement placement, string? anchor, bool after) => placement switch
+    {
+        Placement.Top => "pos=\"top\"",
+        Placement.Bottom => "pos=\"bottom\"",
+        // indexof finds the named item and inserts this one that many rows after it.
+        Placement.Custom when anchor is not null => $"pos=indexof({Quote($"\"{anchor.ToLowerInvariant()}\"")}, {(after ? 1 : 0)})",
+        _ => null,
+    };
 
     private static string TypeOf(Scope scope) => scope.Kind switch
     {

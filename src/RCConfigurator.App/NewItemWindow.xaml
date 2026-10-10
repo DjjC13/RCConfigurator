@@ -1,0 +1,57 @@
+<Window x:Class="RCConfigurator.App.NewItemWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="My own item" Width="520" SizeToContent="Height" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+    <Window.Resources>
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="Opacity" Value="0.75" />
+            <Setter Property="Margin" Value="0,12,0,4" />
+        </Style>
+    </Window.Resources>
+
+    <StackPanel Margin="20">
+        <TextBlock Text="Name shown in the menu" Style="{StaticResource FieldLabel}" Margin="0,0,0,4" />
+        <TextBox x:Name="TitleBox" />
+
+        <TextBlock Text="Program to run" Style="{StaticResource FieldLabel}" />
+        <DockPanel>
+            <Button DockPanel.Dock="Right" Content="Browse…" Click="OnBrowse" Margin="8,0,0,0" Padding="12,4" />
+            <TextBox x:Name="ProgramBox" />
+        </DockPanel>
+
+        <TextBlock Text="What to pass to it" Style="{StaticResource FieldLabel}" />
+        <TextBox x:Name="ArgumentsBox" />
+        <TextBlock Text="%1 stands for the path of whatever you right-clicked. Keep the quotes around it so paths with spaces work."
+                   Opacity="0.6" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0" />
+
+        <TextBlock Text="Show it when I right-click" Style="{StaticResource FieldLabel}" />
+        <DockPanel>
+            <TextBox x:Name="ExtensionBox" DockPanel.Dock="Right" Width="90" Margin="8,0,0,0" ToolTip="File extension, such as .txt" />
+            <ComboBox x:Name="ScopeBox" DisplayMemberPath="Label" SelectionChanged="OnScopeChanged" />
+        </DockPanel>
+
+        <Grid Margin="0,0,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="16" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="Position" Style="{StaticResource FieldLabel}" />
+                <ComboBox x:Name="PlacementBox" DisplayMemberPath="Label" />
+            </StackPanel>
+            <StackPanel Grid.Column="2">
+                <TextBlock Text="Inside a submenu named (optional)" Style="{StaticResource FieldLabel}" />
+                <ComboBox x:Name="GroupBox" IsEditable="True" />
+            </StackPanel>
+        </Grid>
+
+        <TextBlock x:Name="ProblemText" Foreground="#E5484D" TextWrapping="Wrap" Margin="0,16,0,0" Visibility="Collapsed" />
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+            <Button Content="Save" Click="OnSave" IsDefault="True" Padding="20,6" />
+            <Button Content="Cancel" IsCancel="True" Padding="16,6" Margin="8,0,0,0" />
+        </StackPanel>
+    </StackPanel>
+</Window>

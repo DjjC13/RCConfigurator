@@ -281,3 +281,199 @@ public class MenuPreviewTests
     private static string[] Titles(IEnumerable<PreviewItem> items) =>
         items.Select(i => i.IsSeparator ? "-" : i.Title!).ToArray();
 }
+
+public class ScopeTests
+{
+    [Fact]
+    public void A_rule_for_several_things_skips_a_single_selection()
+    {
+        var several = Scope.ForFile(null, SelectionCount.Several);
+
+        Assert.True(several.Covers(Scope.ForFile(".txt", SelectionCount.Several)));
+        Assert.False(several.Covers(Scope.ForFile(".txt", SelectionCount.One)));
+    }
+
+    [Fact]
+    public void A_rule_without_a_count_covers_one_and_several()
+    {
+        var allFiles = Scope.ForFile(null);
+
+        Assert.True(allFiles.Covers(Scope.ForFile(".txt", SelectionCount.One)));
+        Assert.True(allFiles.Covers(Scope.ForFile(".txt", SelectionCount.Several)));
+        Assert.False(allFiles.Covers(new Scope(ScopeKind.Folder, Count: SelectionCount.One)));
+    }
+
+    [Fact]
+    public void Narrower_scopes_are_more_specific()
+    {
+        Assert.True(Scope.Everywhere.Specificity < Scope.ForFile(null).Specificity);
+        Assert.True(Scope.ForFile(null).Specificity < Scope.ForFile(".txt").Specificity);
+        Assert.True(Scope.ForFile(".txt").Specificity < Scope.ForFile(".txt", SelectionCount.Several).Specificity);
+    }
+}
+
+public class OrderingAndNewItemTests
+{
+    private static readonly Scope Context = Scope.ForFile(".txt", SelectionCount.One);
+
+    private static readonly MenuSnapshot Menu = new()
+    {
+        Items = [Item("Open"), Item("Edit"), new MenuEntry { IsSeparator = true }, Item("Cut"), Item("Copy"), Item("Delete")],
+    };
+
+    [Fact]
+    public void A_moved_item_is_written_relative_to_its_neighbour()
+    {
+        var after = NssWriter.Write(new Profile().With(new ItemRule { Name = "Delete", Placement = Placement.Custom, Anchor = "Open", AfterAnchor = true }));
+        var before = NssWriter.Write(new Profile().With(new ItemRule { Name = "Delete", Placement = Placement.Custom, Anchor = "Open" }));
+
+        Assert.Contains("modify(type='*' find=\"\\\"delete\\\"\" pos=indexof(\"\\\"open\\\"\", 1))", after);
+        Assert.Contains("modify(type='*' find=\"\\\"delete\\\"\" pos=indexof(\"\\\"open\\\"\", 0))", before);
+    }
+
+    [Fact]
+    public void Count_scopes_are_written_as_mode_and_selection_tests()
+    {
+        var one = NssWriter.Write(new Profile().With(new ItemRule { Name = "Edit", Scope = new Scope(ScopeKind.Folder, Count: SelectionCount.One), Hidden = true }));
+        var several = NssWriter.Write(new Profile().With(new ItemRule { Name = "Edit", Scope = Scope.ForFile(".txt", SelectionCount.Several), Hidden = true }));
+
+        Assert.Contains("modify(type='dir' mode=\"single\" find=\"\\\"edit\\\"\" vis=vis.remove)", one);
+        Assert.Contains("modify(type='file' where=sel.count>1 and sel.file.ext==\".txt\" find=\"\\\"edit\\\"\" vis=vis.remove)", several);
+    }
+
+    [Fact]
+    public void A_moved_item_lands_next_to_its_neighbour()
+    {
+        var below = new Profile().With(new ItemRule { Name = "Delete", Placement = Placement.Custom, Anchor = "Open", AfterAnchor = true });
+        var above = new Profile().With(new ItemRule { Name = "Delete", Placement = Placement.Custom, Anchor = "Open" });
+
+        Assert.Equal(["Open", "Delete", "Edit", "-", "Cut", "Copy"], Titles(MenuPreview.Build(Menu, Context, below)));
+        Assert.Equal(["Delete", "Open", "Edit", "-", "Cut", "Copy"], Titles(MenuPreview.Build(Menu, Context, above)));
+    }
+
+    [Fact]
+    public void A_moved_item_stays_with_its_neighbour_when_rows_above_change()
+    {
+        var profile = new Profile()
+            .With(new ItemRule { Name = "Delete", Placement = Placement.Custom, Anchor = "Cut", AfterAnchor = true })
+            .With(new ItemRule { Name = "Open", Hidden = true })
+            .WithItem(new NewItem { Title = "Mine", Program = "a.exe", Placement = Placement.Top });
+
+        Assert.Equal(["Mine", "Edit", "-", "Cut", "Delete", "Copy"], Titles(MenuPreview.Build(Menu, Context, profile)));
+    }
+
+    [Fact]
+    public void A_neighbour_is_found_by_its_new_name()
+    {
+        var profile = new Profile()
+            .With(new ItemRule { Name = "Edit", NewTitle = "Modify" })
+            .With(new ItemRule { Name = "Delete", Placement = Placement.Custom, Anchor = "Modify", AfterAnchor = true });
+
+        Assert.Equal(["Open", "Modify", "Delete", "-", "Cut", "Copy"], Titles(MenuPreview.Build(Menu, Context, profile)));
+    }
+
+    [Fact]
+    public void Moved_items_are_placed_in_their_original_order()
+    {
+        // Open comes first in the original menu, so it is placed before Copy has been put back.
+        // Its neighbour is missing at that moment, which sends it to the end.
+        var profile = new Profile()
+            .With(new ItemRule { Name = "Open", Placement = Placement.Custom, Anchor = "Copy", AfterAnchor = true })
+            .With(new ItemRule { Name = "Copy", Placement = Placement.Custom, Anchor = "Edit", AfterAnchor = true });
+
+        Assert.Equal(["Edit", "Copy", "-", "Cut", "Delete", "Open"], Titles(MenuPreview.Build(Menu, Context, profile)));
+    }
+
+    [Fact]
+    public void RowOf_finds_an_item_and_its_menu()
+    {
+        var profile = new Profile().With(new ItemRule { Name = "Delete", Placement = Placement.Custom, Anchor = "Open", AfterAnchor = true });
+
+        var (row, menu) = MenuPreview.RowOf(MenuPreview.Build(Menu, Context, profile), Menu.Items[5]);
+        var hidden = MenuPreview.RowOf(MenuPreview.Build(Menu, Context, new Profile().With(new ItemRule { Name = "Open", Hidden = true })), Menu.Items[0]);
+
+        Assert.Equal(1, row);
+        Assert.Equal(6, menu.Count);
+        Assert.Equal(-1, hidden.Row);
+    }
+    [Fact]
+    public void A_new_item_is_written_with_its_program_and_the_selected_path()
+    {
+        var item = new NewItem { Title = "Open in Editor", Program = @"C:\Tools\edit.exe", Arguments = "--file \"%1\" --new", Scope = Scope.ForFile(".txt") };
+
+        var nss = NssWriter.Write(new Profile().WithItem(item));
+
+        Assert.Contains(
+            "item(type='file' mode=\"multiple\" find=\".txt\" title=\"Open in Editor\" image=\"C:\\\\Tools\\\\edit.exe\" cmd=\"C:\\\\Tools\\\\edit.exe\" "
+            + "args=\"--file \\\"\" + sel.path + \"\\\" --new\" invoke=\"multiple\")",
+            nss);
+    }
+
+    [Fact]
+    public void A_new_item_for_one_selection_at_the_top()
+    {
+        var item = new NewItem { Title = "Terminal here", Program = "wt.exe", Scope = new Scope(ScopeKind.FolderBackground, Count: SelectionCount.One), Placement = Placement.Top };
+
+        var nss = NssWriter.Write(new Profile().WithItem(item));
+
+        Assert.Contains("item(type='dir.back|drive.back' mode=\"single\" title=\"Terminal here\" image=\"wt.exe\" cmd=\"wt.exe\" pos=\"top\")", nss);
+    }
+
+    [Fact]
+    public void A_new_item_in_a_submenu_is_written_inside_it()
+    {
+        var profile = new Profile()
+            .WithItem(new NewItem { Title = "Hash it", Program = "hash.cmd", Group = "Tools" })
+            .With(new ItemRule { Name = "Copy", Group = "Tools" });
+
+        var nss = NssWriter.Write(profile).ReplaceLineEndings("\n");
+
+        Assert.Contains("menu(mode=\"multiple\" title=\"Tools\")\n{\n\titem(type='*' mode=\"multiple\" title=\"Hash it\" cmd=\"hash.cmd\" invoke=\"multiple\")\n}", nss);
+        Assert.Equal(1, nss.Split("menu(mode=").Length - 1);
+    }
+
+    [Fact]
+    public void New_items_appear_in_the_preview_where_the_engine_puts_them()
+    {
+        var profile = new Profile()
+            .WithItem(new NewItem { Title = "First", Program = "a.exe", Placement = Placement.Top })
+            .WithItem(new NewItem { Title = "Middle", Program = "b.exe" })
+            .WithItem(new NewItem { Title = "Last", Program = "c.exe", Placement = Placement.Bottom })
+            .WithItem(new NewItem { Title = "Folders only", Program = "d.exe", Scope = new Scope(ScopeKind.Folder) });
+
+        Assert.Equal(
+            ["First", "Open", "Edit", "Middle", "-", "Cut", "Copy", "Delete", "Last"],
+            Titles(MenuPreview.Build(Menu, Context, profile)));
+    }
+
+    [Fact]
+    public void A_submenu_lists_new_items_before_moved_ones()
+    {
+        var profile = new Profile()
+            .With(new ItemRule { Name = "Copy", Group = "Tools" })
+            .WithItem(new NewItem { Title = "Hash it", Program = "hash.cmd", Group = "Tools" });
+
+        var tools = MenuPreview.Build(Menu, Context, profile).Single(i => i.Title == "Tools");
+
+        Assert.Equal(["Hash it", "Copy"], Titles(tools.Children));
+    }
+
+    [Fact]
+    public void Editing_and_removing_new_items()
+    {
+        var first = new NewItem { Title = "One", Program = "1.exe" };
+        var second = new NewItem { Title = "Two", Program = "2.exe" };
+        var profile = new Profile().WithItem(first).WithItem(second);
+
+        var edited = profile.WithItem(first with { Title = "Uno" }, replacing: first);
+
+        Assert.Equal(["Uno", "Two"], edited.Items.Select(i => i.Title));
+        Assert.Equal(["Two"], profile.WithoutItem(first).Items.Select(i => i.Title));
+    }
+
+    private static MenuEntry Item(string title) => new() { Text = title, RawText = title };
+
+    private static string[] Titles(IEnumerable<PreviewItem> items) =>
+        items.Select(i => i.IsSeparator ? "-" : i.Title!).ToArray();
+}
+

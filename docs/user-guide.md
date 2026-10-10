@@ -4,7 +4,7 @@
 
 The editor has three columns.
 
-1. **When I right-click** is where you choose what was clicked: a file, a folder, a drive, empty space in a folder, or empty space on the desktop. For a file you also choose the file type, because Windows builds a different menu for each one.
+1. **When I right-click** is where you choose what was clicked: a file, several files, a folder, several folders, a drive, empty space in a folder, or empty space on the desktop. For files you also choose the file type, because Windows builds a different menu for each one. Below it, **My own items** lists the items you have added.
 2. **Windows shows this menu** is the menu Windows builds for that target right now, read live from your system. Your changes are marked on it: hidden items are struck through, and renamed or moved items carry a note.
 3. **You will get this menu** is a preview of the result once your rules are applied.
 
@@ -17,9 +17,11 @@ Select an item in the middle column. The panel underneath lets you:
 - **Hide** it.
 - **Rename** it.
 - **Move it into a submenu.** Type a name to create a submenu, or pick one you have already made. Several items can share a submenu.
-- **Change its position** to the top or bottom of the menu.
+- **Change its position.** Pin it to the top or bottom of the menu, or use the ▲ and ▼ buttons to move it one row at a time. Moving past a separator line puts the item in the next group.
 
 **Undo changes** removes every change you made to the selected item.
+
+A moved item is remembered as sitting just above or below a neighbouring item, not as a row number. It therefore stays beside that neighbour when you hide or add other items. If the neighbour does not exist in some other menu the rule applies to, the item goes to the bottom of that menu.
 
 Items inside a submenu, such as the entries under 7-Zip, can be changed the same way. Expand the submenu and select the item.
 
@@ -31,11 +33,28 @@ Each change has a scope, set with **This change applies to**:
 |---|---|
 | One file type | Only `.txt` files |
 | One kind of target | All files, or only folders, or only the desktop |
+| Only several at once | Only when several files, or several folders, are selected together |
 | Everything | Everything you right-click |
+
+To make a change that applies only when several things are selected, choose **Several files** or **Several folders** on the left first. The narrower scopes are offered there.
 
 New changes start with the scope you used last. When rules overlap, the narrower one wins: a rule for `.txt` files overrides a rule for everything.
 
 Rules match items by their title. If two programs add items with the same title, a rule affects both.
+
+## Adding your own items
+
+Under **My own items**, choose **Add…** and fill in:
+
+- **Name shown in the menu.**
+- **Program to run.** Type a path or use **Browse…**. A program on your PATH, such as `notepad.exe`, works without a full path.
+- **What to pass to it.** `%1` stands for the path of whatever you right-clicked. Keep the quotes around it so paths with spaces work.
+- **Show it when I right-click.** Any file, files of one type, a folder, a drive, empty space in a folder, empty space on the desktop, or anything.
+- **Position** and, optionally, a **submenu** to put it in.
+
+When several things are selected, the program is run once for each of them.
+
+Select an item in the list and choose **Edit…** or **Remove** to change or delete it. Double-clicking an item also edits it.
 
 ## Applying your changes
 

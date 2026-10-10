@@ -18,7 +18,17 @@ public partial class MainWindow : Window
         _demo = demo;
         InitializeComponent();
         DataContext = _viewModel;
+        _viewModel.AskForNewItem = (existing, groups) =>
+        {
+            var dialog = new NewItemWindow(existing, groups) { Owner = this };
+            return dialog.ShowDialog() == true ? dialog.Result : null;
+        };
         Loaded += OnLoaded;
+    }
+
+    private void OnNewItemDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (_viewModel.EditItemCommand.CanExecute(null)) _viewModel.EditItemCommand.Execute(null);
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
@@ -47,6 +57,22 @@ public partial class MainWindow : Window
         Change("Share", i => i.Group = "Extras");
         Change("Restore previous versions", i => i.Group = "Extras");
         Change("Copy as path", i => i.Placement = Core.Placement.Bottom);
+        Change("Delete", i =>
+        {
+            _viewModel.SelectedItem = i;
+            _viewModel.MoveUpCommand.Execute(null);
+            _viewModel.MoveUpCommand.Execute(null);
+        });
+
+        _viewModel.AskForNewItem = (_, _) => new Core.NewItem
+        {
+            Title = "Open in my editor",
+            Program = @"C:\Tools\editor.exe",
+            Arguments = "\"%1\"",
+            Scope = Core.Scope.ForFile(null),
+        };
+        _viewModel.AddItemCommand.Execute(null);
+
         Change("Open with Code", i =>
         {
             i.NewTitle = "VS Code";

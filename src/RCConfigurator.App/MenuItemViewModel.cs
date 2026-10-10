@@ -9,19 +9,32 @@ public sealed class MenuItemViewModel : Observable
     private const int MinimumPrefixLength = 3;
 
     private readonly Action<MenuItemViewModel, Scope> _changed;
+    private readonly Func<MenuItemViewModel, (string Anchor, bool After)?> _currentNeighbour;
     private bool _loading;
+    private bool _neighbourChosen;
     private bool _isHidden;
     private string _newTitle = "";
     private string _group = "";
     private Placement _placement;
+    private string? _anchor;
+    private bool _afterAnchor;
     private Scope _scope;
 
-    public MenuItemViewModel(MenuEntry entry, string parentPath, string sampleName, Scope defaultScope, Action<MenuItemViewModel, Scope> changed)
+    /// <param name="changed">Called after a change, with the scope the item had before it.</param>
+    /// <param name="currentNeighbour">Reports an item this one sits next to in the result right now, if any.</param>
+    public MenuItemViewModel(
+        MenuEntry entry,
+        string parentPath,
+        string sampleName,
+        Scope defaultScope,
+        Action<MenuItemViewModel, Scope> changed,
+        Func<MenuItemViewModel, (string Anchor, bool After)?> currentNeighbour)
     {
         Entry = entry;
         ParentPath = parentPath;
         _scope = defaultScope;
         _changed = changed;
+        _currentNeighbour = currentNeighbour;
 
         // Some titles include the name of what was clicked, as in Add to "sample.zip". Those are
         // matched by the part before the name so the rule still works on other files.
@@ -59,9 +72,10 @@ public sealed class MenuItemViewModel : Observable
 
     public string Title => _newTitle.Length > 0 && !_isHidden ? _newTitle : OriginalTitle;
 
-    public string? Verb => Entry.Verb;
-
     public bool IsShown => !_isHidden;
+
+    /// <summary>True when the item can be moved up and down: it is shown and still in its own menu.</summary>
+    public bool CanBeMoved => !_isHidden && _group.Length == 0;
 
     /// <summary>A short description of the changes, shown beside the title.</summary>
     public string Note
@@ -73,8 +87,9 @@ public sealed class MenuItemViewModel : Observable
             var notes = new List<string>();
             if (_newTitle.Length > 0) notes.Add($"was {OriginalTitle}");
             if (_group.Length > 0) notes.Add($"moved into {_group}");
-            if (_placement == Placement.Top) notes.Add("pinned to top");
-            if (_placement == Placement.Bottom) notes.Add("pinned to bottom");
+            else if (_placement == Placement.Top) notes.Add("pinned to top");
+            else if (_placement == Placement.Bottom) notes.Add("pinned to bottom");
+            else if (_placement == Placement.Custom) notes.Add("moved");
             return string.Join(", ", notes);
         }
     }
@@ -100,8 +115,19 @@ public sealed class MenuItemViewModel : Observable
     public Placement Placement
     {
         get => _placement;
-        set => Change(ref _placement, value);
+        set
+        {
+            // Choosing "where I moved it" from the list, rather than by moving, keeps the item where it is now.
+            if (value == Placement.Custom && _placement != Placement.Custom && !_neighbourChosen && !_loading)
+            {
+                if (_currentNeighbour(this) is not { } neighbour) return;
+                (_anchor, _afterAnchor) = neighbour;
+            }
+
+            Change(ref _placement, value);
+        }
     }
+
 
     public Scope Scope
     {
@@ -126,7 +152,26 @@ public sealed class MenuItemViewModel : Observable
         NewTitle = _newTitle.Trim().Length > 0 ? _newTitle.Trim() : null,
         Group = _group.Length > 0 ? _group : null,
         Placement = _placement,
+        Anchor = _placement == Placement.Custom ? _anchor : null,
+        AfterAnchor = _placement == Placement.Custom && _afterAnchor,
     };
+
+    /// <summary>Puts the item just above or just below another item.</summary>
+    public void MoveNextTo(string anchor, bool after)
+    {
+        (_anchor, _afterAnchor) = (anchor, after);
+        if (_placement == Placement.Custom)
+        {
+            // The placement itself has not changed, so announce the new neighbour directly.
+            _changed(this, _scope);
+        }
+        else
+        {
+            _neighbourChosen = true;
+            Placement = Placement.Custom;
+            _neighbourChosen = false;
+        }
+    }
 
     /// <summary>Shows the rule the profile already holds for this item, picking the narrowest of the offered scopes.</summary>
     public void Load(Profile profile, IEnumerable<Scope> offeredScopes)
@@ -135,7 +180,7 @@ public sealed class MenuItemViewModel : Observable
             .Where(r => offeredScopes.Contains(r.Scope) && r.Match == Match
                 && string.Equals(r.Name, MatchName, StringComparison.OrdinalIgnoreCase)
                 && string.Equals(r.ParentPath, ParentPath, StringComparison.OrdinalIgnoreCase))
-            .MaxBy(Profile.Specificity);
+            .MaxBy(r => r.Scope.Specificity);
         if (rule is null) return;
 
         _loading = true;
@@ -143,6 +188,7 @@ public sealed class MenuItemViewModel : Observable
         IsHidden = rule.Hidden;
         NewTitle = rule.NewTitle ?? "";
         Group = rule.Group ?? "";
+        (_anchor, _afterAnchor) = (rule.Anchor, rule.AfterAnchor);
         Placement = rule.Placement;
         _loading = false;
     }
@@ -167,6 +213,7 @@ public sealed class MenuItemViewModel : Observable
         Raise(nameof(Title));
         Raise(nameof(Note));
         Raise(nameof(IsShown));
+        Raise(nameof(CanBeMoved));
         Raise(nameof(HasChanges));
         if (!_loading) _changed(this, previousScope);
     }

@@ -67,16 +67,17 @@ public static class SampleFiles
         }
     }
 
-    public static string FileWithExtension(string extension)
+    /// <param name="second">True for the second sample, used when several things are selected together.</param>
+    public static string FileWithExtension(string extension, bool second = false)
     {
-        var path = Path.Combine(Folder, FileStem + extension);
+        var path = Path.Combine(Folder, FileStem + (second ? " 2" : "") + extension);
         if (!File.Exists(path)) File.WriteAllBytes(path, []);
         return path;
     }
 
-    public static string SubFolder()
+    public static string SubFolder(bool second = false)
     {
-        var path = Path.Combine(Folder, FolderName);
+        var path = Path.Combine(Folder, FolderName + (second ? " 2" : ""));
         Directory.CreateDirectory(path);
         return path;
     }

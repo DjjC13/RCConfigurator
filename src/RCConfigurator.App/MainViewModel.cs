@@ -5,7 +5,7 @@ using RCConfigurator.Core;
 namespace RCConfigurator.App;
 
 /// <summary>Something the user can right-click.</summary>
-public sealed record Target(string Label, ScopeKind Kind);
+public sealed record Target(string Label, ScopeKind Kind, bool Several = false);
 
 public sealed class MainViewModel : Observable
 {
@@ -24,6 +24,7 @@ public sealed class MainViewModel : Observable
     private string _extension = ".txt";
     private bool _includeShiftItems;
     private MenuItemViewModel? _selectedItem;
+    private NewItem? _selectedNewItem;
     private IReadOnlyList<Choice<Scope>> _scopeOptions = [];
     private string _status = "";
     private string _engineStatus = "";
@@ -37,13 +38,27 @@ public sealed class MainViewModel : Observable
         ApplyCommand = new RelayCommand(Apply);
         DisconnectCommand = new RelayCommand(Disconnect);
         ResetCommand = new RelayCommand(() => SelectedItem?.Reset(), () => SelectedItem?.HasChanges == true);
+        MoveUpCommand = new RelayCommand(() => Move(-1), () => SelectedItem?.CanBeMoved == true);
+        MoveDownCommand = new RelayCommand(() => Move(+1), () => SelectedItem?.CanBeMoved == true);
+        AddItemCommand = new RelayCommand(() => EditNewItem(existing: null));
+        EditItemCommand = new RelayCommand(() => EditNewItem(SelectedNewItem), () => SelectedNewItem is not null);
+        RemoveItemCommand = new RelayCommand(RemoveNewItem, () => SelectedNewItem is not null);
+        foreach (var item in _profile.Items) NewItems.Add(item);
         UpdateEngineStatus();
     }
+
+    /// <summary>
+    /// Shows the dialog for adding or editing an item and returns the result, or null if the user
+    /// cancelled. Set by the window.
+    /// </summary>
+    public Func<NewItem?, IReadOnlyList<string>, NewItem?>? AskForNewItem { get; set; }
 
     public IReadOnlyList<Target> Targets { get; } =
     [
         new("A file", ScopeKind.File),
+        new("Several files", ScopeKind.File, Several: true),
         new("A folder", ScopeKind.Folder),
+        new("Several folders", ScopeKind.Folder, Several: true),
         new("A drive", ScopeKind.Drive),
         new("Empty space in a folder", ScopeKind.FolderBackground),
         new("Empty space on the desktop", ScopeKind.Desktop),
@@ -56,6 +71,7 @@ public sealed class MainViewModel : Observable
         new("Where Windows puts it", Placement.Default),
         new("Top of the menu", Placement.Top),
         new("Bottom of the menu", Placement.Bottom),
+        new("Where I moved it", Placement.Custom),
     ];
 
     public ObservableCollection<MenuItemViewModel> Items { get; } = [];
@@ -64,6 +80,8 @@ public sealed class MainViewModel : Observable
 
     public ObservableCollection<string> Groups { get; } = [];
 
+    public ObservableCollection<NewItem> NewItems { get; } = [];
+
     public ICommand RefreshCommand { get; }
 
     public ICommand ApplyCommand { get; }
@@ -71,6 +89,16 @@ public sealed class MainViewModel : Observable
     public ICommand DisconnectCommand { get; }
 
     public ICommand ResetCommand { get; }
+
+    public ICommand MoveUpCommand { get; }
+
+    public ICommand MoveDownCommand { get; }
+
+    public ICommand AddItemCommand { get; }
+
+    public ICommand EditItemCommand { get; }
+
+    public ICommand RemoveItemCommand { get; }
 
     public Target SelectedTarget
     {
@@ -119,6 +147,12 @@ public sealed class MainViewModel : Observable
 
     public bool HasNoSelection => _selectedItem is null;
 
+    public NewItem? SelectedNewItem
+    {
+        get => _selectedNewItem;
+        set => Set(ref _selectedNewItem, value);
+    }
+
     public IReadOnlyList<Choice<Scope>> ScopeOptions
     {
         get => _scopeOptions;
@@ -149,6 +183,9 @@ public sealed class MainViewModel : Observable
         private set => Set(ref _isBusy, value);
     }
 
+    /// <summary>The engine config for the current rules, as it would be written by Apply.</summary>
+    public string BuildConfig() => Engine.Find().BuildConfig(_profile);
+
     public async Task RefreshAsync()
     {
         var version = ++_refreshVersion;
@@ -165,15 +202,18 @@ public sealed class MainViewModel : Observable
         Status = "Reading the menu from Windows…";
         try
         {
-            var arguments = ProbeArguments(target.Kind, extension);
+            var arguments = ProbeArguments(target, extension);
             if (_includeShiftItems) arguments.Insert(0, "--extended");
             var snapshot = await ProbeRunner.RunAsync(arguments);
             if (version != _refreshVersion) return;
 
             _snapshot = snapshot;
-            _context = target.Kind == ScopeKind.File ? Scope.ForFile(extension) : new Scope(target.Kind);
+            _context = new Scope(
+                target.Kind,
+                target.Kind == ScopeKind.File ? extension : null,
+                target.Several ? SelectionCount.Several : SelectionCount.One);
             ScopeOptions = ScopeOptionsFor(target, extension);
-            RebuildItems(SampleNameFor(target.Kind));
+            RebuildItems(target.Kind is ScopeKind.File or ScopeKind.Folder ? SampleFiles.FileStem : "");
             RebuildPreview();
             Status = $"Windows shows {CountItems(snapshot.Items)} items here. Pick one to change it.";
         }
@@ -208,36 +248,44 @@ public sealed class MainViewModel : Observable
         await RefreshAsync();
     }
 
-    private static List<string> ProbeArguments(ScopeKind kind, string extension) => kind switch
+    private static List<string> ProbeArguments(Target target, string extension) => (target.Kind, target.Several) switch
     {
-        ScopeKind.File => [SampleFiles.FileWithExtension(extension)],
-        ScopeKind.Folder => [SampleFiles.SubFolder()],
-        ScopeKind.Drive => [SampleFiles.SystemDrive],
-        ScopeKind.FolderBackground => ["--background", SampleFiles.Folder],
+        (ScopeKind.File, false) => [SampleFiles.FileWithExtension(extension)],
+        (ScopeKind.File, true) => [SampleFiles.FileWithExtension(extension), SampleFiles.FileWithExtension(extension, second: true)],
+        (ScopeKind.Folder, false) => [SampleFiles.SubFolder()],
+        (ScopeKind.Folder, true) => [SampleFiles.SubFolder(), SampleFiles.SubFolder(second: true)],
+        (ScopeKind.Drive, _) => [SampleFiles.SystemDrive],
+        (ScopeKind.FolderBackground, _) => ["--background", SampleFiles.Folder],
         _ => ["--desktop"],
-    };
-
-    private static string SampleNameFor(ScopeKind kind) => kind switch
-    {
-        ScopeKind.File => SampleFiles.FileStem,
-        ScopeKind.Folder => SampleFiles.FolderName,
-        _ => "",
     };
 
     private static IReadOnlyList<Choice<Scope>> ScopeOptionsFor(Target target, string extension)
     {
         var everything = new Choice<Scope>("Everything I right-click", Scope.Everywhere);
-        return target.Kind switch
+        return (target.Kind, target.Several) switch
         {
-            ScopeKind.File =>
+            (ScopeKind.File, false) =>
             [
                 new($"Only {extension} files", Scope.ForFile(extension)),
                 new("All files", Scope.ForFile(null)),
                 everything,
             ],
-            ScopeKind.Folder => [new("Only folders", new Scope(ScopeKind.Folder)), everything],
-            ScopeKind.Drive => [new("Only drives", new Scope(ScopeKind.Drive)), everything],
-            ScopeKind.FolderBackground => [new("Only empty space in folders", new Scope(ScopeKind.FolderBackground)), everything],
+            (ScopeKind.File, true) =>
+            [
+                new($"Only several {extension} files", Scope.ForFile(extension, SelectionCount.Several)),
+                new("Several files of any type", Scope.ForFile(null, SelectionCount.Several)),
+                new("All files, one or several", Scope.ForFile(null)),
+                everything,
+            ],
+            (ScopeKind.Folder, false) => [new("Only folders", new Scope(ScopeKind.Folder)), everything],
+            (ScopeKind.Folder, true) =>
+            [
+                new("Only several folders", new Scope(ScopeKind.Folder, Count: SelectionCount.Several)),
+                new("All folders, one or several", new Scope(ScopeKind.Folder)),
+                everything,
+            ],
+            (ScopeKind.Drive, _) => [new("Only drives", new Scope(ScopeKind.Drive)), everything],
+            (ScopeKind.FolderBackground, _) => [new("Only empty space in folders", new Scope(ScopeKind.FolderBackground)), everything],
             _ => [new("Only the desktop", new Scope(ScopeKind.Desktop)), everything],
         };
     }
@@ -245,7 +293,7 @@ public sealed class MainViewModel : Observable
     private void RebuildItems(string sampleName)
     {
         var offered = _scopeOptions.Select(o => o.Value).ToList();
-        var defaultScope = offered.MinBy(s => Math.Abs(Profile.Specificity(new ItemRule { Name = "", Scope = s }) - _preferredSpecificity))!;
+        var defaultScope = offered.MinBy(s => Math.Abs(s.Specificity - _preferredSpecificity))!;
 
         Items.Clear();
         SelectedItem = null;
@@ -257,7 +305,7 @@ public sealed class MainViewModel : Observable
             var items = new List<MenuItemViewModel>(entries.Count);
             foreach (var entry in entries)
             {
-                var item = new MenuItemViewModel(entry, parentPath, sampleName, defaultScope, OnItemChanged);
+                var item = new MenuItemViewModel(entry, parentPath, sampleName, defaultScope, OnItemChanged, NeighbourOf);
                 item.Load(_profile, offered);
                 if (entry.IsSubmenu)
                 {
@@ -278,16 +326,118 @@ public sealed class MainViewModel : Observable
         if (previousScope != rule.Scope)
         {
             // The change now belongs to a different scope, so drop it from the old one.
-            _profile = _profile.With(rule with { Scope = previousScope, Hidden = false, NewTitle = null, Group = null, Placement = Placement.Default });
-            _preferredSpecificity = Profile.Specificity(rule);
+            _profile = _profile.With(new ItemRule { Name = rule.Name, Match = rule.Match, ParentPath = rule.ParentPath, Scope = previousScope });
+            _preferredSpecificity = rule.Scope.Specificity;
         }
 
         _profile = _profile.With(rule);
+        Save();
+    }
+
+    private void Save()
+    {
         ProfileStore.Save(_profile);
         RebuildPreview();
         RefreshGroups();
         CommandManager.InvalidateRequerySuggested();
         Status = "Saved. Choose Apply to Explorer when you are ready to use it.";
+    }
+
+    /// <summary>Moves the selected item one row up or down within its menu.</summary>
+    private void Move(int direction)
+    {
+        if (SelectedItem is not { CanBeMoved: true } item || _snapshot is null) return;
+
+        var (row, menu) = MenuPreview.RowOf(MenuPreview.Build(_snapshot, _context, _profile), item.Entry);
+        if (row < 0) return;
+
+        var target = row + direction;
+        if (target < 0 || target >= menu.Count)
+        {
+            Status = direction < 0 ? "It is already at the top." : "It is already at the bottom.";
+            return;
+        }
+
+        // The engine places moved items one at a time, so the obvious neighbour does not always
+        // give the row wanted. Try sitting above and below every other item and keep whichever
+        // lands closest, preferring a neighbour near the target.
+        var rule = item.ToRule();
+        var best = (Anchor: "", After: false, Row: row, Score: int.MaxValue);
+        for (var i = 0; i < menu.Count; i++)
+        {
+            if (!CanAnchorTo(menu[i], item)) continue;
+
+            foreach (var after in new[] { true, false })
+            {
+                var candidate = rule with { Placement = Placement.Custom, Anchor = menu[i].EngineTitle, AfterAnchor = after };
+                var landed = MenuPreview.RowOf(MenuPreview.Build(_snapshot, _context, _profile.With(candidate)), item.Entry).Row;
+                if (landed < 0) continue;
+
+                var score = Math.Abs(landed - target) * 1000 + Math.Abs(i - target);
+                if (score < best.Score) best = (menu[i].EngineTitle, after, landed, score);
+            }
+        }
+
+        if (best.Score == int.MaxValue || best.Row == row)
+        {
+            Status = "It cannot move any further that way.";
+            return;
+        }
+
+        item.MoveNextTo(best.Anchor, best.After);
+    }
+
+    /// <summary>An item the given one currently sits next to, preferring the one above it.</summary>
+    private (string Anchor, bool After)? NeighbourOf(MenuItemViewModel item)
+    {
+        if (_snapshot is null) return null;
+
+        var (row, menu) = MenuPreview.RowOf(MenuPreview.Build(_snapshot, _context, _profile), item.Entry);
+        if (row < 0) return null;
+
+        for (var i = row - 1; i >= 0 && !menu[i].IsSeparator; i--)
+        {
+            if (CanAnchorTo(menu[i], item)) return (menu[i].EngineTitle, true);
+        }
+
+        for (var i = row + 1; i < menu.Count && !menu[i].IsSeparator; i++)
+        {
+            if (CanAnchorTo(menu[i], item)) return (menu[i].EngineTitle, false);
+        }
+
+        return null;
+    }
+
+    // A neighbour is found by its title, and the engine reads | in a title pattern as "or".
+    private static bool CanAnchorTo(PreviewItem candidate, MenuItemViewModel item) =>
+        !candidate.IsSeparator
+        && !ReferenceEquals(candidate.Source, item.Entry)
+        && candidate.EngineTitle.Length > 0
+        && !candidate.EngineTitle.Contains('|');
+
+    private void EditNewItem(NewItem? existing)
+    {
+        if (AskForNewItem?.Invoke(existing, Groups.ToList()) is not { } item) return;
+
+        _profile = _profile.WithItem(item, replacing: existing);
+        RefreshNewItems(select: item);
+        Save();
+    }
+
+    private void RemoveNewItem()
+    {
+        if (SelectedNewItem is not { } item) return;
+
+        _profile = _profile.WithoutItem(item);
+        RefreshNewItems(select: null);
+        Save();
+    }
+
+    private void RefreshNewItems(NewItem? select)
+    {
+        NewItems.Clear();
+        foreach (var item in _profile.Items) NewItems.Add(item);
+        SelectedNewItem = select;
     }
 
     private void RebuildPreview()
@@ -299,20 +449,12 @@ public sealed class MainViewModel : Observable
 
     private void RefreshGroups()
     {
-        var names = _profile.Rules
-            .Select(r => r.Group)
-            .OfType<string>()
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Order(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        var names = _profile.Groups.Order(StringComparer.OrdinalIgnoreCase).ToList();
 
         // Change the list in place: clearing it would also clear the text of the drop-down showing it.
         foreach (var gone in Groups.Except(names, StringComparer.OrdinalIgnoreCase).ToList()) Groups.Remove(gone);
         foreach (var added in names.Except(Groups, StringComparer.OrdinalIgnoreCase).ToList()) Groups.Add(added);
     }
-
-    /// <summary>The engine config for the current rules, as it would be written by Apply.</summary>
-    public string BuildConfig() => Engine.Find().BuildConfig(_profile);
 
     private void Apply()
     {
