@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>RCConfigurator</AssemblyName>
+    <!-- Application.ThemeMode, which gives the Windows 11 look, is still marked experimental. -->
+    <NoWarn>$(NoWarn);WPF0001</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\RCConfigurator.Core\RCConfigurator.Core.csproj" />
+    <!-- Referenced so rcprobe.exe is copied next to the app, which runs it as a separate process. -->
+    <ProjectReference Include="..\RCConfigurator.Probe\RCConfigurator.Probe.csproj" />
+  </ItemGroup>
+
+</Project>

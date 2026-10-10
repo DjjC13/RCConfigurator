@@ -1,0 +1,169 @@
+<Window x:Class="RCConfigurator.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="RCConfigurator" Width="1240" Height="780" MinWidth="980" MinHeight="600"
+        WindowStartupLocation="CenterScreen">
+    <Window.Resources>
+        <Style x:Key="Heading" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="0,0,0,8" />
+        </Style>
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="Opacity" Value="0.75" />
+            <Setter Property="Margin" Value="0,0,0,4" />
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <DockPanel Grid.Row="0" Margin="0,0,0,16" LastChildFill="False">
+            <TextBlock DockPanel.Dock="Left" Text="Right-click menus" FontSize="22" FontWeight="SemiBold" VerticalAlignment="Center" />
+            <Button DockPanel.Dock="Right" Content="Apply to Explorer" Command="{Binding ApplyCommand}" Padding="16,6" />
+            <Button DockPanel.Dock="Right" Content="Stop using my rules" Command="{Binding DisconnectCommand}" Padding="12,6" Margin="0,0,8,0"
+                    Visibility="{Binding IsConnected, Converter={StaticResource BoolToVisibility}}" />
+            <TextBlock DockPanel.Dock="Right" Text="{Binding EngineStatus}" Opacity="0.75" VerticalAlignment="Center" Margin="0,0,16,0" />
+        </DockPanel>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="240" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- What was right-clicked -->
+            <DockPanel Grid.Column="0">
+                <TextBlock DockPanel.Dock="Top" Text="When I right-click" Style="{StaticResource Heading}" />
+                <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
+                    <CheckBox Content="Include Shift-only items" IsChecked="{Binding IncludeShiftItems}" />
+                    <Button Content="Read the menu again" Command="{Binding RefreshCommand}" Margin="0,8,0,0" HorizontalAlignment="Stretch" />
+                </StackPanel>
+                <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0"
+                            Visibility="{Binding IsFileTarget, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Text="File type" Style="{StaticResource FieldLabel}" />
+                    <ComboBox IsEditable="True" ItemsSource="{Binding ExtensionPresets}"
+                              Text="{Binding Extension, UpdateSourceTrigger=PropertyChanged}" />
+                </StackPanel>
+                <ListBox ItemsSource="{Binding Targets}" SelectedItem="{Binding SelectedTarget}" DisplayMemberPath="Label" />
+            </DockPanel>
+
+            <!-- The menu Windows builds, with the user's changes marked -->
+            <Grid Grid.Column="1" Margin="16,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Text="Windows shows this menu" Style="{StaticResource Heading}" />
+
+                <TreeView Grid.Row="1" ItemsSource="{Binding Items}" SelectedItemChanged="OnItemSelected">
+                    <TreeView.ItemTemplate>
+                        <HierarchicalDataTemplate ItemsSource="{Binding Children}">
+                            <Grid>
+                                <Border x:Name="Line" Height="1" Width="180" HorizontalAlignment="Left" Opacity="0.3" Visibility="Collapsed"
+                                        Background="{Binding Foreground, RelativeSource={RelativeSource AncestorType=TreeViewItem}}" />
+                                <StackPanel x:Name="Row" Orientation="Horizontal">
+                                    <TextBlock x:Name="Title" Text="{Binding Title}" />
+                                    <TextBlock Text="{Binding Note}" Margin="10,0,0,0" Opacity="0.6" FontStyle="Italic" />
+                                </StackPanel>
+                            </Grid>
+                            <HierarchicalDataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding IsSeparator}" Value="True">
+                                    <Setter TargetName="Line" Property="Visibility" Value="Visible" />
+                                    <Setter TargetName="Row" Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsHidden}" Value="True">
+                                    <Setter TargetName="Title" Property="TextDecorations" Value="Strikethrough" />
+                                    <Setter TargetName="Title" Property="Opacity" Value="0.5" />
+                                </DataTrigger>
+                            </HierarchicalDataTemplate.Triggers>
+                        </HierarchicalDataTemplate>
+                    </TreeView.ItemTemplate>
+                </TreeView>
+
+                <Border Grid.Row="2" Margin="0,12,0,0" Padding="14" CornerRadius="6" BorderThickness="1" BorderBrush="#50808080">
+                    <Grid>
+                        <TextBlock Text="Pick an item in the menu above to hide it, rename it or move it."
+                                   Opacity="0.75" TextWrapping="Wrap"
+                                   Visibility="{Binding HasNoSelection, Converter={StaticResource BoolToVisibility}}" />
+
+                        <Grid Visibility="{Binding HasSelection, Converter={StaticResource BoolToVisibility}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="16" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <DockPanel Grid.Row="0" Grid.ColumnSpan="3" Margin="0,0,0,12" LastChildFill="False">
+                                <TextBlock DockPanel.Dock="Left" Text="{Binding SelectedItem.OriginalTitle}" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center" />
+                                <Button DockPanel.Dock="Right" Content="Undo changes" Command="{Binding ResetCommand}" Padding="10,4" />
+                                <CheckBox DockPanel.Dock="Right" Content="Hide" IsChecked="{Binding SelectedItem.IsHidden}" Margin="0,0,16,0" VerticalAlignment="Center" />
+                            </DockPanel>
+
+                            <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,0,12" IsEnabled="{Binding SelectedItem.IsShown}">
+                                <TextBlock Text="Rename to" Style="{StaticResource FieldLabel}" />
+                                <TextBox Text="{Binding SelectedItem.NewTitle, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Grid.Column="2" Margin="0,0,0,12" IsEnabled="{Binding SelectedItem.IsShown}">
+                                <TextBlock Text="Move into a submenu named" Style="{StaticResource FieldLabel}" />
+                                <ComboBox IsEditable="True" ItemsSource="{Binding Groups}" DropDownClosed="OnGroupPicked"
+                                          Text="{Binding SelectedItem.Group, UpdateSourceTrigger=LostFocus}" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="2" Grid.Column="0" IsEnabled="{Binding SelectedItem.IsShown}">
+                                <TextBlock Text="Position" Style="{StaticResource FieldLabel}" />
+                                <ComboBox ItemsSource="{Binding PlacementOptions}" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                          SelectedValue="{Binding SelectedItem.Placement}" />
+                            </StackPanel>
+                            <StackPanel Grid.Row="2" Grid.Column="2">
+                                <TextBlock Text="This change applies to" Style="{StaticResource FieldLabel}" />
+                                <ComboBox ItemsSource="{Binding ScopeOptions}" DisplayMemberPath="Label" SelectedValuePath="Value"
+                                          SelectedValue="{Binding SelectedItem.Scope}" />
+                            </StackPanel>
+                        </Grid>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- The result -->
+            <DockPanel Grid.Column="2">
+                <TextBlock DockPanel.Dock="Top" Text="You will get this menu" Style="{StaticResource Heading}" />
+                <TreeView ItemsSource="{Binding Preview}" Focusable="False">
+                    <TreeView.ItemContainerStyle>
+                        <Style TargetType="TreeViewItem" BasedOn="{StaticResource {x:Type TreeViewItem}}">
+                            <Setter Property="Focusable" Value="False" />
+                        </Style>
+                    </TreeView.ItemContainerStyle>
+                    <TreeView.ItemTemplate>
+                        <HierarchicalDataTemplate ItemsSource="{Binding Children}">
+                            <Grid>
+                                <Border x:Name="Line" Height="1" Width="180" HorizontalAlignment="Left" Opacity="0.3" Visibility="Collapsed"
+                                        Background="{Binding Foreground, RelativeSource={RelativeSource AncestorType=TreeViewItem}}" />
+                                <TextBlock x:Name="Title" Text="{Binding Title}" />
+                            </Grid>
+                            <HierarchicalDataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding IsSeparator}" Value="True">
+                                    <Setter TargetName="Line" Property="Visibility" Value="Visible" />
+                                    <Setter TargetName="Title" Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </HierarchicalDataTemplate.Triggers>
+                        </HierarchicalDataTemplate>
+                    </TreeView.ItemTemplate>
+                </TreeView>
+            </DockPanel>
+        </Grid>
+
+        <TextBlock Grid.Row="2" Text="{Binding Status}" Margin="0,12,0,0" Opacity="0.85" TextTrimming="CharacterEllipsis" />
+    </Grid>
+</Window>

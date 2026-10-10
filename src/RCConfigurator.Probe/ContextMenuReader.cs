@@ -38,15 +38,31 @@ internal sealed class ContextMenuReader
     public static MenuSnapshot Read(ProbeOptions options)
     {
         var pidls = new List<IntPtr>();
+        HostedShellView? view = null;
         try
         {
-            var menuObject = options.Kind switch
+            object menuObject;
+            if (options.Kind == TargetKind.Items)
             {
-                TargetKind.Items => GetItemsMenu(options.Paths, pidls),
-                TargetKind.FolderBackground => GetBackgroundMenu(options.Paths[0], pidls),
-                TargetKind.Desktop => GetDesktopMenu(),
-                _ => throw new ArgumentOutOfRangeException(nameof(options)),
-            };
+                menuObject = GetItemsMenu(options.Paths, pidls);
+            }
+            else
+            {
+                var isDesktop = options.Kind == TargetKind.Desktop;
+                try
+                {
+                    view = HostedShellView.Open(isDesktop ? DesktopPidl(pidls) : Parse(options.Paths[0], pidls), isDesktop);
+                    menuObject = view.GetBackgroundMenu();
+                }
+                catch (Exception e)
+                {
+                    // The folder alone still reports most of the menu, just not the view's own items.
+                    Console.Error.WriteLine($"Warning: the menu may be missing View, Sort by, Refresh and Paste. {e.Message}");
+                    view?.Dispose();
+                    view = null;
+                    menuObject = isDesktop ? GetDesktopMenu() : GetBackgroundMenu(options.Paths[0], pidls);
+                }
+            }
 
             var hMenu = CreatePopupMenu();
             if (hMenu == 0) throw new Win32Exception();
@@ -75,8 +91,18 @@ internal sealed class ContextMenuReader
         }
         finally
         {
+            view?.Dispose();
             foreach (var pidl in pidls) Marshal.FreeCoTaskMem(pidl);
         }
+    }
+
+    /// <summary>The desktop is the root of the shell namespace, which is an empty item list.</summary>
+    private static IntPtr DesktopPidl(List<IntPtr> pidls)
+    {
+        var pidl = Marshal.AllocCoTaskMem(sizeof(ushort));
+        Marshal.WriteInt16(pidl, 0);
+        pidls.Add(pidl);
+        return pidl;
     }
 
     private static object GetItemsMenu(IReadOnlyList<string> paths, List<IntPtr> pidls)
@@ -149,6 +175,15 @@ internal sealed class ContextMenuReader
                     : [],
             });
         }
+
+        // Windows never draws a separator at either end of a menu or directly under another one.
+        for (var i = entries.Count - 1; i > 0; i--)
+        {
+            if (entries[i].IsSeparator && entries[i - 1].IsSeparator) entries.RemoveAt(i);
+        }
+
+        if (entries.Count > 0 && entries[0].IsSeparator) entries.RemoveAt(0);
+        if (entries.Count > 0 && entries[^1].IsSeparator) entries.RemoveAt(entries.Count - 1);
 
         return entries;
     }
@@ -232,11 +267,4 @@ internal sealed class ContextMenuReader
         cbSize = (uint)Marshal.SizeOf<MENUITEMINFOW>(),
         fMask = mask,
     };
-
-    private static void Check(int hr, string action)
-    {
-        if (hr >= 0) return;
-        var reason = Marshal.GetExceptionForHR(hr)?.Message ?? $"error 0x{hr:X8}";
-        throw new InvalidOperationException($"Could not {action}: {reason}");
-    }
 }

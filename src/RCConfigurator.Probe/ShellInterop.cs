@@ -47,6 +47,73 @@ internal interface IContextMenu3
     [PreserveSig] int HandleMenuMsg2(uint msg, IntPtr wParam, IntPtr lParam, IntPtr plResult);
 }
 
+[ComImport, Guid("000214E3-0000-0000-C000-000000000046"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+internal interface IShellView
+{
+    [PreserveSig] int GetWindow(out IntPtr phwnd);
+    [PreserveSig] int ContextSensitiveHelp([MarshalAs(UnmanagedType.Bool)] bool enterMode);
+    [PreserveSig] int TranslateAccelerator(IntPtr pmsg);
+    [PreserveSig] int EnableModeless([MarshalAs(UnmanagedType.Bool)] bool enable);
+    [PreserveSig] int UIActivate(uint state);
+    [PreserveSig] int Refresh();
+    [PreserveSig] int CreateViewWindow(IntPtr previous, IntPtr folderSettings, IntPtr shellBrowser, IntPtr viewRect, out IntPtr phwnd);
+    [PreserveSig] int DestroyViewWindow();
+    [PreserveSig] int GetCurrentInfo(IntPtr folderSettings);
+    [PreserveSig] int AddPropertySheetPages(uint reserved, IntPtr callback, IntPtr lParam);
+    [PreserveSig] int SaveViewState();
+    [PreserveSig] int SelectItem(IntPtr pidlItem, uint flags);
+    [PreserveSig] int GetItemObject(uint item, ref Guid riid, [MarshalAs(UnmanagedType.IUnknown)] out object? ppv);
+}
+
+[ComImport, Guid("DFD3B6B5-C10C-4BE9-85F6-A66969F402F6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+internal interface IExplorerBrowser
+{
+    [PreserveSig] int Initialize(IntPtr hwndParent, ref RECT rect, ref FOLDERSETTINGS folderSettings);
+    [PreserveSig] int Destroy();
+    [PreserveSig] int SetRect(IntPtr phdwp, RECT rect);
+    [PreserveSig] int SetPropertyBag([MarshalAs(UnmanagedType.LPWStr)] string propertyBag);
+    [PreserveSig] int SetEmptyText([MarshalAs(UnmanagedType.LPWStr)] string emptyText);
+    [PreserveSig] int SetFolderSettings(ref FOLDERSETTINGS folderSettings);
+    [PreserveSig] int Advise(IntPtr events, out uint cookie);
+    [PreserveSig] int Unadvise(uint cookie);
+    [PreserveSig] int SetOptions(uint flags);
+    [PreserveSig] int GetOptions(out uint flags);
+    [PreserveSig] int BrowseToIDList(IntPtr pidl, uint flags);
+    [PreserveSig] int BrowseToObject([MarshalAs(UnmanagedType.IUnknown)] object target, uint flags);
+    [PreserveSig] int FillFromObject([MarshalAs(UnmanagedType.IUnknown)] object source, uint flags);
+    [PreserveSig] int RemoveAll();
+    [PreserveSig] int GetCurrentView(ref Guid riid, [MarshalAs(UnmanagedType.IUnknown)] out object? ppv);
+}
+
+[StructLayout(LayoutKind.Sequential)]
+internal struct RECT
+{
+    public int left;
+    public int top;
+    public int right;
+    public int bottom;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+internal struct FOLDERSETTINGS
+{
+    public uint ViewMode;
+    public uint fFlags;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+internal struct MSG
+{
+    public IntPtr hwnd;
+    public uint message;
+    public IntPtr wParam;
+    public IntPtr lParam;
+    public uint time;
+    public int ptX;
+    public int ptY;
+    public uint lPrivate;
+}
+
 [StructLayout(LayoutKind.Sequential)]
 internal struct MENUITEMINFOW
 {
@@ -90,6 +157,42 @@ internal static class NativeMethods
     public const uint MFS_DEFAULT = 0x1000;
 
     public const uint WM_INITMENUPOPUP = 0x0117;
+
+    public static Guid IID_IShellView = new("000214E3-0000-0000-C000-000000000046");
+    public static readonly Guid CLSID_ExplorerBrowser = new("71F96385-DDD6-48D3-A0C1-AE06E8B055FB");
+
+    public const uint SVGIO_BACKGROUND = 0;
+    public const uint FVM_DETAILS = 4;
+    public const uint FWF_DESKTOP = 0x20;
+    public const uint WS_POPUP = 0x80000000;
+    public const uint WS_CLIPCHILDREN = 0x02000000;
+    public const uint PM_REMOVE = 1;
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern IntPtr CreateWindowExW(uint exStyle, string className, string? windowName, uint style,
+        int x, int y, int width, int height, IntPtr parent, IntPtr menu, IntPtr instance, IntPtr param);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool DestroyWindow(IntPtr hwnd);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool PeekMessageW(out MSG msg, IntPtr hwnd, uint filterMin, uint filterMax, uint remove);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool TranslateMessage(ref MSG msg);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr DispatchMessageW(ref MSG msg);
+
+    public static void Check(int hr, string action)
+    {
+        if (hr >= 0) return;
+        var reason = Marshal.GetExceptionForHR(hr)?.Message ?? $"error 0x{hr:X8}";
+        throw new InvalidOperationException($"Could not {action}: {reason}");
+    }
 
     [DllImport("ole32.dll")]
     public static extern int OleInitialize(IntPtr reserved);

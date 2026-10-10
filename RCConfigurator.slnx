@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/RCConfigurator.App/RCConfigurator.App.csproj" />
     <Project Path="src/RCConfigurator.Core/RCConfigurator.Core.csproj" />
     <Project Path="src/RCConfigurator.Probe/RCConfigurator.Probe.csproj" />
   </Folder>
