@@ -23,7 +23,7 @@
 
         <DockPanel Grid.Row="0" Margin="0,0,0,16" LastChildFill="False">
             <TextBlock DockPanel.Dock="Left" Text="Right-click menus" FontSize="22" FontWeight="SemiBold" VerticalAlignment="Center" />
-            <Button DockPanel.Dock="Right" Content="Apply to Explorer" Command="{Binding ApplyCommand}" Padding="16,6" />
+            <Button DockPanel.Dock="Right" Content="Apply to Explorer" Command="{Binding ApplyCommand}" ToolTip="{Binding ApplyHint}" Padding="16,6" />
             <Button DockPanel.Dock="Right" Content="Stop using my rules" Command="{Binding DisconnectCommand}" Padding="12,6" Margin="0,0,8,0"
                     Visibility="{Binding IsConnected, Converter={StaticResource BoolToVisibility}}" />
             <TextBlock DockPanel.Dock="Right" Text="{Binding EngineStatus}" Opacity="0.75" VerticalAlignment="Center" Margin="0,0,16,0" />

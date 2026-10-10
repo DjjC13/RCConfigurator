@@ -32,7 +32,11 @@ public partial class MainWindow : Window
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
         await _viewModel.RefreshAsync();
-        if (_screenshotPath is null) return;
+        if (_screenshotPath is null)
+        {
+            await _viewModel.UpdateEngineIfNeededAsync();
+            return;
+        }
 
         if (_demo) MakeDemoChanges();
 

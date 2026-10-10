@@ -30,13 +30,14 @@ public sealed class MainViewModel : Observable
     private string _engineStatus = "";
     private bool _isConnected;
     private bool _isBusy;
+    private bool _isChangingExplorer;
 
     public MainViewModel()
     {
         _selectedTarget = Targets[0];
         RefreshCommand = new RelayCommand(() => _ = RefreshAsync());
-        ApplyCommand = new RelayCommand(Apply);
-        DisconnectCommand = new RelayCommand(Disconnect);
+        ApplyCommand = new RelayCommand(() => _ = ApplyAsync(), () => !_isChangingExplorer);
+        DisconnectCommand = new RelayCommand(() => _ = DisconnectAsync(), () => !_isChangingExplorer);
         ResetCommand = new RelayCommand(() => SelectedItem?.Reset(), () => SelectedItem?.HasChanges == true);
         MoveUpCommand = new RelayCommand(() => Move(-1), () => SelectedItem?.CanBeMoved == true);
         MoveDownCommand = new RelayCommand(() => Move(+1), () => SelectedItem?.CanBeMoved == true);
@@ -182,6 +183,8 @@ public sealed class MainViewModel : Observable
         get => _isBusy;
         private set => Set(ref _isBusy, value);
     }
+
+    public string ApplyHint => "Saves your rules for Nilesoft Shell and restarts Explorer so they take effect. Open folder windows will close.";
 
     /// <summary>The engine config for the current rules, as it would be written by Apply.</summary>
     public string BuildConfig() => Engine.Find().BuildConfig(_profile);
@@ -456,7 +459,9 @@ public sealed class MainViewModel : Observable
         foreach (var added in names.Except(Groups, StringComparer.OrdinalIgnoreCase).ToList()) Groups.Add(added);
     }
 
-    private void Apply()
+    private const string ExplorerDidNotReturn = "Explorer did not come back by itself. Press Ctrl+Shift+Esc, choose Run new task and type explorer.";
+
+    private async Task ApplyAsync()
     {
         try
         {
@@ -469,7 +474,7 @@ public sealed class MainViewModel : Observable
             }
 
             Engine.Connect();
-            Status = "Applied. Hold Ctrl and right-click once in Explorer to load the new menus.";
+            await ReloadEngineAsync(engine, "Applied. Explorer was restarted and is using your new menus.");
         }
         catch (Exception e) when (e is System.IO.IOException or UnauthorizedAccessException or System.Security.SecurityException)
         {
@@ -479,11 +484,72 @@ public sealed class MainViewModel : Observable
         UpdateEngineStatus();
     }
 
-    private void Disconnect()
+    private async Task DisconnectAsync()
     {
         Engine.Disconnect();
+        await ReloadEngineAsync(Engine.Find(), "Nilesoft Shell is back on its own settings.");
         UpdateEngineStatus();
-        Status = "Nilesoft Shell is back on its own settings. Hold Ctrl and right-click once in Explorer to reload.";
+    }
+
+    /// <summary>
+    /// Makes the engine read its config again. It only does that when Explorer starts, so this
+    /// restarts Explorer, after registering the engine first if Windows has lost track of it.
+    /// </summary>
+    private async Task ReloadEngineAsync(Engine engine, string doneMessage)
+    {
+        _isChangingExplorer = true;
+        CommandManager.InvalidateRequerySuggested();
+        try
+        {
+            if (engine.IsInstalled && !Engine.IsRegistered)
+            {
+                Status = "Registering Nilesoft Shell with Windows. Windows will ask for permission.";
+                if (!await engine.RegisterAsync())
+                {
+                    Status = "Saved, but Nilesoft Shell is not registered with Windows because permission was not given.";
+                    return;
+                }
+
+                // Registering restarts Explorer.
+                Status = doneMessage;
+                return;
+            }
+
+            Status = "Restarting Explorer to load the change…";
+            Status = await Task.Run(ExplorerRestart.Restart) ? doneMessage : ExplorerDidNotReturn;
+        }
+        finally
+        {
+            _isChangingExplorer = false;
+            CommandManager.InvalidateRequerySuggested();
+        }
+    }
+
+    /// <summary>Looks for a newer Nilesoft Shell and installs it. Called once after the window opens.</summary>
+    public async Task UpdateEngineIfNeededAsync()
+    {
+        if (!Engine.Find().IsInstalled || !await EngineInstaller.IsUpdateAvailableAsync()) return;
+
+        _isChangingExplorer = true;
+        CommandManager.InvalidateRequerySuggested();
+        try
+        {
+            Status = "A newer Nilesoft Shell is available. Updating it now; follow the prompts in the window that opens.";
+            await EngineInstaller.UpgradeAsync();
+
+            // The installer registers the engine and restarts Explorer. Make sure both happened.
+            var engine = Engine.Find();
+            if (engine.IsInstalled && !Engine.IsRegistered) await engine.RegisterAsync();
+            else if (engine.IsLoaded() == false) await Task.Run(ExplorerRestart.Restart);
+
+            Status = $"Nilesoft Shell is now version {Engine.Find().Version}.";
+        }
+        finally
+        {
+            _isChangingExplorer = false;
+            CommandManager.InvalidateRequerySuggested();
+            UpdateEngineStatus();
+        }
     }
 
     private void UpdateEngineStatus()
@@ -493,6 +559,7 @@ public sealed class MainViewModel : Observable
         EngineStatus = !engine.IsInstalled
             ? "Nilesoft Shell is not installed"
             : $"Nilesoft Shell {engine.Version} · {(IsConnected ? "using your rules" : "not using your rules yet")}";
+        Raise(nameof(ApplyHint));
     }
 
     private static int CountItems(IReadOnlyList<MenuEntry> items) =>

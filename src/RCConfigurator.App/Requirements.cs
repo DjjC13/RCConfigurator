@@ -44,18 +44,50 @@ public static class EngineInstaller
 {
     public const string DownloadPage = "https://nilesoft.org/download";
 
+    private const string Package = "--id Nilesoft.Shell --exact --source winget";
+    private static readonly TimeSpan CheckTimeout = TimeSpan.FromSeconds(60);
+
+    /// <summary>Installs the engine. Returns false if the Windows package manager is not available.</summary>
+    public static Task<bool> InstallAsync() => RunInWindowAsync($"install {Package}");
+
+    /// <summary>Updates the engine to the newest version. Returns false if the Windows package manager is not available.</summary>
+    public static Task<bool> UpgradeAsync() => RunInWindowAsync($"upgrade {Package}");
+
+    /// <summary>Asks the Windows package manager whether a newer engine exists. False if it cannot say.</summary>
+    public static async Task<bool> IsUpdateAvailableAsync()
+    {
+        try
+        {
+            using var process = Process.Start(new ProcessStartInfo("winget", $"list {Package} --upgrade-available --disable-interactivity")
+            {
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            });
+            if (process is null) return false;
+
+            using var timeout = new CancellationTokenSource(CheckTimeout);
+            var output = await process.StandardOutput.ReadToEndAsync(timeout.Token);
+            await process.WaitForExitAsync(timeout.Token);
+
+            // The package is listed only when an upgrade exists; otherwise the list is empty.
+            return output.Contains("Nilesoft.Shell", StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception e) when (e is Win32Exception or OperationCanceledException or InvalidOperationException)
+        {
+            return false;
+        }
+    }
+
     /// <summary>
     /// Runs the Windows package manager in its own window, so the user sees its progress and any
     /// questions it asks. Returns false if the package manager is not available.
     /// </summary>
-    public static async Task<bool> RunWingetAsync()
+    private static async Task<bool> RunInWindowAsync(string arguments)
     {
         try
         {
-            using var process = Process.Start(new ProcessStartInfo("winget", "install --id Nilesoft.Shell --exact --source winget")
-            {
-                UseShellExecute = true,
-            });
+            using var process = Process.Start(new ProcessStartInfo("winget", arguments) { UseShellExecute = true });
             if (process is null) return false;
 
             await process.WaitForExitAsync();

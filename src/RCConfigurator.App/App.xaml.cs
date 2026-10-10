@@ -13,12 +13,13 @@ public partial class App : Application
 
         // Development aids: "--screenshot file.png" saves a picture of the first window and exits,
         // "--demo" makes a few sample changes first and writes the resulting config beside it, and
-        // "--skip-checks" opens the editor without the start-up requirements.
+        // "--skip-checks" opens the editor without the start-up requirements, and "--show-checks"
+        // shows the set-up window even when everything is already in place.
         var screenshotPath = ValueOf(e.Args, "--screenshot");
 
         // Closing the requirements window must not end the app before the editor opens.
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
-        if (!e.Args.Contains("--skip-checks") && !RequirementsWindow.AreMet)
+        if (!e.Args.Contains("--skip-checks") && (e.Args.Contains("--show-checks") || !RequirementsWindow.AreMet))
         {
             if (new RequirementsWindow(screenshotPath).ShowDialog() != true)
             {

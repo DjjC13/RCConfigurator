@@ -1,15 +1,31 @@
 # User guide
 
-## First launch
+## Starting up
 
-![The set-up window listing Nilesoft Shell and the classic right-click menu](images/setup.png)
+RCConfigurator needs three things before it opens the editor. It checks them every time it starts. If any is missing it shows a set-up window instead, and **Continue** stays greyed out until all three are ticked.
 
-RCConfigurator needs two things before it opens the editor. If either is missing it shows this window instead, and **Continue** stays greyed out until both are ticked.
+1. **Nilesoft Shell is installed.** This is the program that applies your changes inside Explorer.
+2. **Windows shows the classic right-click menu.** Windows 11 normally shows a shorter menu with "Show more options" at the bottom. Your changes appear in the classic menu, so Windows needs to show that one straight away. It is a setting for your account only. Windows 10 already works this way.
+3. **Nilesoft Shell is running in Explorer.** It has to be registered with Windows, and Explorer has to have loaded it.
 
-1. **Nilesoft Shell.** This is the program that applies your changes inside Explorer. **Install…** runs the Windows package manager (`winget install Nilesoft.Shell`) in its own window. It asks for administrator permission and restarts Explorer. If the package manager is not available, the download page opens instead; install it from there and come back.
-2. **Classic right-click menu.** Windows 11 normally shows a shorter menu with "Show more options" at the bottom. Your changes appear in the classic menu, so **Switch to it** tells Windows to show that one straight away. It is a setting for your account only, and it takes effect when Explorer next restarts: installing Nilesoft Shell does that, and so does signing out and back in. On Windows 10 this step is already done.
+**Set these up for me** does whatever is missing, in order:
 
-**Quit** closes RCConfigurator without changing anything further. The window checks again whenever you return to it, so you can also do either step yourself.
+- installs Nilesoft Shell with the Windows package manager (`winget install Nilesoft.Shell`), in its own window;
+- switches Windows to the classic menu;
+- registers Nilesoft Shell with Windows;
+- restarts Explorer if that is needed for any of it to take effect.
+
+Windows asks for administrator permission for the install and for the registration, because those change the whole PC. Nothing else needs it, and you never need to start RCConfigurator itself as administrator.
+
+If the package manager is not available, the download page opens instead; install it from there and come back. **Quit** closes RCConfigurator. The window checks again whenever you return to it.
+
+### Does anything need to start with Windows?
+
+No. Once Nilesoft Shell is registered, Explorer loads it by itself every time it starts, so your menus are in place as soon as you sign in. RCConfigurator does not need to be running.
+
+### Updates to Nilesoft Shell
+
+When the editor opens, RCConfigurator asks the Windows package manager whether a newer Nilesoft Shell exists. If one does, it runs the update in its own window (Windows asks for permission), then makes sure the engine is still registered and running.
 
 ## The window
 
@@ -69,18 +85,17 @@ Select an item in the list and choose **Edit…** or **Remove** to change or del
 
 ## Applying your changes
 
-Changes are saved as you make them, but Explorer does not use them until you apply.
+Changes are saved as you make them, but Explorer does not use them until you choose **Apply to Explorer**.
 
-1. Choose **Apply to Explorer**.
-2. Hold Ctrl and right-click once in Explorer. This makes the engine reload its config.
+Applying restarts Explorer, because the engine only reads its rules when Explorer starts. The taskbar disappears for a second or two and comes back, and any open folder windows close. Your other programs are not affected.
 
 The top right of the window shows whether the engine is installed and whether it is using your rules.
 
 ## Going back
 
-- **Stop using my rules** returns Nilesoft Shell to its own settings. Hold Ctrl and right-click once to reload.
+- **Stop using my rules** returns Nilesoft Shell to its own settings and restarts Explorer.
 - To remove the engine, uninstall it: `winget uninstall Nilesoft.Shell`.
-- To return to the Windows 11 menu, delete the setting the first-launch window added, then sign out and back in:
+- To return to the Windows 11 menu, delete the setting the set-up window added, then sign out and back in:
 
   ```
   reg delete "HKCU\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}" /f
@@ -101,7 +116,11 @@ Deleting the first three resets RCConfigurator. RCConfigurator itself writes not
 
 ## Troubleshooting
 
-**The menu in Explorer has not changed.** Hold Ctrl and right-click once to reload. If it still has not changed, look for errors in `shell.log` in the engine's folder, usually `C:\Program Files\Nilesoft Shell`.
+**The menu in Explorer has not changed.** Choose **Apply to Explorer** again and wait for the taskbar to come back. If it still has not changed, close RCConfigurator and start it again so it re-checks that the engine is registered and running.
+
+**Explorer did not come back after applying.** Press Ctrl+Shift+Esc to open Task Manager, choose **Run new task**, type `explorer` and press Enter.
+
+**I was running RCConfigurator or Nilesoft Shell as administrator to make it work.** That is no longer needed. Earlier betas left you to restart Explorer yourself, and Nilesoft Shell's own tool for that insists on administrator rights.
 
 **"Could not read the menu."** A shell extension may have stalled or crashed while the menu was being read. Choose **Read the menu again**. If one target always fails, a program that adds items to that menu is the likely cause.
 

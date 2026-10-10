@@ -129,7 +129,71 @@ public sealed record Engine(string? Folder, string? Version)
     public static string ConfigPath { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RCConfigurator", "shell.nss");
 
+    // The class the engine registers as a context-menu handler.
+    private const string ContextMenuClassId = "{BAE3934B-8A6A-4BFB-81BD-3FC599A1BAF1}";
+
     public bool IsInstalled => Folder is not null;
+
+    /// <summary>True when the engine is registered with Windows, which makes Explorer load it every time it starts.</summary>
+    public static bool IsRegistered
+    {
+        get
+        {
+            using var key = Registry.ClassesRoot.OpenSubKey($@"CLSID\{ContextMenuClassId}");
+            return key is not null;
+        }
+    }
+
+    /// <summary>
+    /// True when Explorer has the engine loaded right now, false when it does not, and null when
+    /// that cannot be seen, as happens when an x64 build looks at Explorer on an ARM PC.
+    /// </summary>
+    public bool? IsLoaded()
+    {
+        if (Folder is null) return false;
+        try
+        {
+            var session = Process.GetCurrentProcess().SessionId;
+            foreach (var explorer in Process.GetProcessesByName("explorer").Where(p => p.SessionId == session))
+            {
+                foreach (ProcessModule module in explorer.Modules)
+                {
+                    if (module.FileName.StartsWith(Folder, StringComparison.OrdinalIgnoreCase)) return true;
+                }
+            }
+
+            return false;
+        }
+        catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Registers the engine with Windows and restarts Explorer. This is the one step that needs
+    /// administrator rights, so Windows asks for permission. Returns false if that is refused.
+    /// </summary>
+    public async Task<bool> RegisterAsync()
+    {
+        if (Folder is null) return false;
+        try
+        {
+            using var process = Process.Start(new ProcessStartInfo(Path.Combine(Folder, "shell.exe"), "-register -restart -silent")
+            {
+                UseShellExecute = true,
+                Verb = "runas",
+            });
+            if (process is null) return false;
+
+            await process.WaitForExitAsync();
+            return IsRegistered;
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            return false;
+        }
+    }
 
     public static Engine Find()
     {
@@ -143,7 +207,8 @@ public sealed record Engine(string? Folder, string? Version)
         foreach (var folder in folders)
         {
             var exe = Path.Combine(folder, "shell.exe");
-            if (File.Exists(exe)) return new Engine(folder, FileVersionInfo.GetVersionInfo(exe).ProductVersion);
+            // The file version is the full one, such as 1.9.18; the product version stops at 1.9.
+            if (File.Exists(exe)) return new Engine(folder, FileVersionInfo.GetVersionInfo(exe).FileVersion);
         }
 
         return new Engine(null, null);
