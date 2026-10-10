@@ -133,9 +133,15 @@ public sealed record Engine(string? Folder, string? Version)
 
     public static Engine Find()
     {
-        foreach (var programFiles in new[] { Environment.SpecialFolder.ProgramFiles, Environment.SpecialFolder.ProgramFilesX86 })
+        // The installer and winget use Program Files; Scoop keeps it under the user's profile.
+        string[] folders =
+        [
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Nilesoft Shell"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Nilesoft Shell"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "scoop", "apps", "nilesoft-shell", "current"),
+        ];
+        foreach (var folder in folders)
         {
-            var folder = Path.Combine(Environment.GetFolderPath(programFiles), "Nilesoft Shell");
             var exe = Path.Combine(folder, "shell.exe");
             if (File.Exists(exe)) return new Engine(folder, FileVersionInfo.GetVersionInfo(exe).ProductVersion);
         }

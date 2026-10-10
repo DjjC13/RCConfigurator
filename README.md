@@ -25,20 +25,19 @@ The Windows right-click menu is different for every kind of thing you click: a t
 
 ## Getting started
 
-Download the zip for your PC from the [latest release](https://github.com/DjjC13/RCConfigurator/releases), unzip it anywhere, and run `RCConfigurator.exe`. Nothing else needs installing to use the editor.
+Download the zip for your PC from the [latest release](https://github.com/DjjC13/RCConfigurator/releases), unzip it anywhere, and run `RCConfigurator.exe`. You do not need to install .NET.
 
 - `win-x64` is for most PCs.
 - `win-arm64` is for Windows on ARM, such as Snapdragon laptops. Use it there rather than the x64 build, so the editor sees the same menu items Explorer does.
 
 The builds are not code-signed, so Windows SmartScreen may warn the first time you run one.
 
-To have your changes take effect in Explorer, install the engine:
+On first launch RCConfigurator checks for two things and will not open the editor until both are in place:
 
-```
-winget install Nilesoft.Shell
-```
+1. **Nilesoft Shell is installed.** The **Install…** button runs `winget install Nilesoft.Shell` for you.
+2. **Windows 11 is set to show the classic right-click menu.** The **Switch to it** button changes that setting for your account. Windows 10 already uses the classic menu.
 
-Then choose **Apply to Explorer** in the editor, and hold Ctrl while you right-click once in Explorer so the engine reloads.
+Then make your changes, choose **Apply to Explorer**, and hold Ctrl while you right-click once in Explorer so the engine reloads.
 
 ## Documentation
 

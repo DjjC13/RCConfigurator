@@ -1,5 +1,16 @@
 # User guide
 
+## First launch
+
+![The set-up window listing Nilesoft Shell and the classic right-click menu](images/setup.png)
+
+RCConfigurator needs two things before it opens the editor. If either is missing it shows this window instead, and **Continue** stays greyed out until both are ticked.
+
+1. **Nilesoft Shell.** This is the program that applies your changes inside Explorer. **Install…** runs the Windows package manager (`winget install Nilesoft.Shell`) in its own window. It asks for administrator permission and restarts Explorer. If the package manager is not available, the download page opens instead; install it from there and come back.
+2. **Classic right-click menu.** Windows 11 normally shows a shorter menu with "Show more options" at the bottom. Your changes appear in the classic menu, so **Switch to it** tells Windows to show that one straight away. It is a setting for your account only, and it takes effect when Explorer next restarts: installing Nilesoft Shell does that, and so does signing out and back in. On Windows 10 this step is already done.
+
+**Quit** closes RCConfigurator without changing anything further. The window checks again whenever you return to it, so you can also do either step yourself.
+
 ## The window
 
 The editor has three columns.
@@ -60,16 +71,20 @@ Select an item in the list and choose **Edit…** or **Remove** to change or del
 
 Changes are saved as you make them, but Explorer does not use them until you apply.
 
-1. Install [Nilesoft Shell](https://github.com/moudey/Shell) if you have not already: `winget install Nilesoft.Shell`. Installing it replaces the Windows 11 menu with its own straight away.
-2. Choose **Apply to Explorer**.
-3. Hold Ctrl and right-click once in Explorer. This makes the engine reload its config.
+1. Choose **Apply to Explorer**.
+2. Hold Ctrl and right-click once in Explorer. This makes the engine reload its config.
 
 The top right of the window shows whether the engine is installed and whether it is using your rules.
 
 ## Going back
 
 - **Stop using my rules** returns Nilesoft Shell to its own settings. Hold Ctrl and right-click once to reload.
-- To return to the standard Windows menu, uninstall the engine: `winget uninstall Nilesoft.Shell`.
+- To remove the engine, uninstall it: `winget uninstall Nilesoft.Shell`.
+- To return to the Windows 11 menu, delete the setting the first-launch window added, then sign out and back in:
+
+  ```
+  reg delete "HKCU\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}" /f
+  ```
 - Holding Ctrl and the Windows key while you right-click turns the engine off and shows the classic Windows menu. Holding Ctrl while you right-click turns it back on.
 
 ## Where things are kept
@@ -80,8 +95,9 @@ The top right of the window shows whether the engine is installed and whether it
 | The config written for the engine | `%LOCALAPPDATA%\RCConfigurator\shell.nss` |
 | Sample files the probe right-clicks | `%LOCALAPPDATA%\RCConfigurator\samples` |
 | The setting that points the engine at the config | `HKCU\Software\Nilesoft\Shell`, value `config` |
+| The classic-menu setting | `HKCU\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32` |
 
-Deleting the first three resets RCConfigurator. Nothing is written outside your own user profile.
+Deleting the first three resets RCConfigurator. RCConfigurator itself writes nothing outside your own user profile; installing Nilesoft Shell is a normal program install.
 
 ## Troubleshooting
 

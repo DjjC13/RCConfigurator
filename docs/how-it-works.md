@@ -78,12 +78,17 @@ The config is written to `%LOCALAPPDATA%\RCConfigurator\shell.nss`. The engine r
 
 The engine code is kept behind the `Engine` class and `NssWriter`, so another engine could be supported by replacing those two.
 
+## Start-up requirements
+
+Before the editor opens, the app checks that the engine is installed (it looks for `shell.exe` in the engine's usual folders) and, on Windows 11, that the classic menu is switched on. The classic menu is controlled by an empty default value under `HKCU\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32`, which stops Windows loading its newer menu for that user. If either check fails, a set-up window offers to fix it and the editor does not open until both pass.
+
 ## Development aids
 
-The editor accepts three command-line options that exist for development:
+The editor accepts these command-line options, which exist for development:
 
 | Option | Effect |
 |---|---|
 | `--profile file.json` | Keep rules in this file instead of the usual one. |
-| `--screenshot file.png` | Save a picture of the window once the first menu has loaded, then exit. |
+| `--screenshot file.png` | Save a picture of the first window that opens, then exit. |
+| `--skip-checks` | Open the editor without the start-up requirements. |
 | `--demo` | With `--screenshot`: make a few sample changes first and write the resulting config beside the picture. |

@@ -1,7 +1,5 @@
 using System.IO;
 using System.Windows;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 
 namespace RCConfigurator.App;
@@ -41,7 +39,7 @@ public partial class MainWindow : Window
         // Select something so the picture shows the editing panel too.
         _viewModel.SelectedItem ??= _viewModel.Items.FirstOrDefault(i => !i.IsSeparator);
         await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
-        SaveScreenshot(_screenshotPath);
+        WindowPicture.Save(this, _screenshotPath);
         if (_demo) File.WriteAllText(Path.ChangeExtension(_screenshotPath, ".nss"), _viewModel.BuildConfig());
         Close();
     }
@@ -95,34 +93,5 @@ public partial class MainWindow : Window
     {
         // Typed text is saved when the box loses focus; a pick from the list should count straight away.
         (sender as System.Windows.Controls.ComboBox)?.GetBindingExpression(System.Windows.Controls.ComboBox.TextProperty)?.UpdateSource();
-    }
-
-    private void SaveScreenshot(string path)
-    {
-        var content = (FrameworkElement)Content;
-        var dpi = VisualTreeHelper.GetDpi(this);
-        var margin = content.Margin;
-        var size = new Size(content.ActualWidth + margin.Left + margin.Right, content.ActualHeight + margin.Top + margin.Bottom);
-
-        // The themed window background is drawn by Windows, so paint one in for the picture:
-        // dark behind light text and light behind dark text.
-        var text = (Foreground as SolidColorBrush)?.Color ?? Colors.Black;
-        var isDarkTheme = text.R + text.G + text.B > 3 * 128;
-        var picture = new DrawingVisual();
-        using (var drawing = picture.RenderOpen())
-        {
-            drawing.DrawRectangle(isDarkTheme ? new SolidColorBrush(Color.FromRgb(0x20, 0x20, 0x20)) : Brushes.White, null, new Rect(size));
-            drawing.DrawRectangle(new VisualBrush(content), null, new Rect(margin.Left, margin.Top, content.ActualWidth, content.ActualHeight));
-        }
-
-        var bitmap = new RenderTargetBitmap(
-            (int)(size.Width * dpi.DpiScaleX), (int)(size.Height * dpi.DpiScaleY),
-            dpi.PixelsPerInchX, dpi.PixelsPerInchY, PixelFormats.Pbgra32);
-        bitmap.Render(picture);
-
-        var encoder = new PngBitmapEncoder();
-        encoder.Frames.Add(BitmapFrame.Create(bitmap));
-        using var file = File.Create(path);
-        encoder.Save(file);
     }
 }
