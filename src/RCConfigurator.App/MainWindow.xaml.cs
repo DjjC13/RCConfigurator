@@ -75,7 +75,8 @@ public partial class MainWindow : Window
     {
         var content = (FrameworkElement)Content;
         var dpi = VisualTreeHelper.GetDpi(this);
-        var size = new Size(content.ActualWidth, content.ActualHeight);
+        var margin = content.Margin;
+        var size = new Size(content.ActualWidth + margin.Left + margin.Right, content.ActualHeight + margin.Top + margin.Bottom);
 
         // The themed window background is drawn by Windows, so paint one in for the picture:
         // dark behind light text and light behind dark text.
@@ -85,7 +86,7 @@ public partial class MainWindow : Window
         using (var drawing = picture.RenderOpen())
         {
             drawing.DrawRectangle(isDarkTheme ? new SolidColorBrush(Color.FromRgb(0x20, 0x20, 0x20)) : Brushes.White, null, new Rect(size));
-            drawing.DrawRectangle(new VisualBrush(content), null, new Rect(size));
+            drawing.DrawRectangle(new VisualBrush(content), null, new Rect(margin.Left, margin.Top, content.ActualWidth, content.ActualHeight));
         }
 
         var bitmap = new RenderTargetBitmap(

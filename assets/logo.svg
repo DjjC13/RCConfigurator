@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title">
+  <title id="title">RCConfigurator</title>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4F46E5"/>
+      <stop offset="1" stop-color="#9333EA"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="256" height="256" rx="56" fill="url(#background)"/>
+
+  <!-- A right-click menu with one row picked out -->
+  <rect x="84" y="56" width="132" height="160" rx="18" fill="#FFFFFF"/>
+  <rect x="100" y="78" width="100" height="16" rx="8" fill="#C7D2FE"/>
+  <rect x="92" y="108" width="116" height="32" rx="10" fill="#4F46E5"/>
+  <rect x="116" y="116" width="76" height="16" rx="8" fill="#FFFFFF"/>
+  <rect x="100" y="154" width="100" height="16" rx="8" fill="#C7D2FE"/>
+  <rect x="100" y="184" width="64" height="16" rx="8" fill="#C7D2FE"/>
+
+  <!-- The pointer that opened it -->
+  <path d="M36 44 L36 138 L60 116 L78 156 L98 147 L80 108 L112 108 Z"
+        fill="#111827" stroke="#FFFFFF" stroke-width="10" stroke-linejoin="round"/>
+</svg>
