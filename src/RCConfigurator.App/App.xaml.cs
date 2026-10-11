@@ -9,6 +9,14 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        // Started by the app itself, with administrator rights, to remove machine-wide leftovers.
+        // It shows nothing and exits when done.
+        if (ValueOf(e.Args, CleanupService.ElevatedOption) is { } cleanupRequest)
+        {
+            Shutdown(RCConfigurator.Cleanup.ElevatedCleanup.Run(cleanupRequest));
+            return;
+        }
+
         if (ValueOf(e.Args, "--profile") is { } profilePath) ProfileStore.FilePath = Path.GetFullPath(profilePath);
 
         // Development aids: "--screenshot file.png" saves a picture of the first window and exits,
@@ -21,6 +29,14 @@ public partial class App : Application
 
         // Closing the requirements window must not end the app before the editor opens.
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
+
+        // Development aid: "--show-cleanup" opens only the clean-up window.
+        if (e.Args.Contains("--show-cleanup"))
+        {
+            new CleanupWindow(screenshotPath).ShowDialog();
+            Shutdown();
+            return;
+        }
         if (!e.Args.Contains("--skip-checks") && (e.Args.Contains("--show-checks") || !RequirementsWindow.AreMet))
         {
             if (new RequirementsWindow(screenshotPath).ShowDialog() != true)

@@ -38,6 +38,9 @@ public sealed class MainViewModel : Observable
     private bool _isBusy;
     private bool _isChangingExplorer;
 
+    private string _leftoverNotice = "";
+    private IReadOnlyList<LeftoverProgram> _leftoverPrograms = [];
+
     private readonly MenuScanner _scanner = new();
     private readonly IReadOnlyList<string> _allTypes = WindowsFileTypes.AllExtensions();
     private FileChoice _selectedFileChoice;
@@ -55,6 +58,14 @@ public sealed class MainViewModel : Observable
         RebuildFileChoices();
         _selectedFileChoice = FileChoices[0];
         ManageGroupsCommand = new RelayCommand(ManageGroups);
+        CleanupCommand = new RelayCommand(() =>
+        {
+            // The menus on show were read before the clean-up, so read them again afterwards.
+            if (ShowCleanup?.Invoke() == true) _ = RefreshAsync(fresh: true);
+            _ = CheckForLeftoversAsync();
+        });
+        IgnoreLeftoversCommand = new RelayCommand(IgnoreLeftovers);
+        DismissLeftoversCommand = new RelayCommand(() => LeftoverNotice = "");
 
         RefreshCommand = new RelayCommand(() => _ = RefreshAsync(fresh: true));
         ApplyCommand = new RelayCommand(() => _ = ApplyAsync(), () => !_isChangingExplorer);
@@ -81,6 +92,63 @@ public sealed class MainViewModel : Observable
     /// Set by the window.
     /// </summary>
     public Func<IReadOnlyList<FileKind>, IReadOnlyList<string>, IReadOnlyList<FileKind>?>? AskForGroups { get; set; }
+
+    /// <summary>
+    /// Shows the window that removes what uninstalled programs left behind, and returns true if
+    /// anything was removed or put back. Set by the window.
+    /// </summary>
+    public Func<bool>? ShowCleanup { get; set; }
+
+    public ICommand CleanupCommand { get; }
+
+    public ICommand IgnoreLeftoversCommand { get; }
+
+    public ICommand DismissLeftoversCommand { get; }
+
+    /// <summary>Says that obsolete registry entries were found, or is empty when there is nothing to say.</summary>
+    public string LeftoverNotice
+    {
+        get => _leftoverNotice;
+        private set
+        {
+            if (Set(ref _leftoverNotice, value)) Raise(nameof(HasLeftoverNotice));
+        }
+    }
+
+    public bool HasLeftoverNotice => _leftoverNotice.Length > 0;
+
+    /// <summary>
+    /// Looks for registry entries left by programs that are gone and, if there are any the user
+    /// has not chosen to ignore, says so. Called when the window opens and after a clean-up.
+    /// </summary>
+    public async Task CheckForLeftoversAsync()
+    {
+        var ignored = SettingsStore.Load().IgnoredLeftovers;
+        _leftoverPrograms = (await CleanupService.ScanAsync())
+            .Where(p => !ignored.Contains(p.Program, StringComparer.OrdinalIgnoreCase))
+            .ToList();
+
+        var entries = _leftoverPrograms.Sum(p => p.Entries.Count);
+        LeftoverNotice = _leftoverPrograms.Count == 0
+            ? ""
+            : $"{Plural(_leftoverPrograms.Count, "program that is no longer installed has", "programs that are no longer installed have")} left "
+              + $"{Plural(entries, "obsolete entry", "obsolete entries")} in the registry.";
+
+        static string Plural(int count, string one, string many) => count == 1 ? $"1 {one}" : $"{count} {many}";
+    }
+
+    private void IgnoreLeftovers()
+    {
+        var settings = SettingsStore.Load();
+        SettingsStore.Save(settings with
+        {
+            IgnoredLeftovers = settings.IgnoredLeftovers
+                .Concat(_leftoverPrograms.Select(p => p.Program))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList(),
+        });
+        LeftoverNotice = "";
+    }
 
     public ObservableCollection<FileChoice> FileChoices { get; } = [];
 
@@ -117,10 +185,10 @@ public sealed class MainViewModel : Observable
 
     public IReadOnlyList<Choice<Placement>> PlacementOptions { get; } =
     [
-        new("Where Windows puts it", Placement.Default),
-        new("Top of the menu", Placement.Top),
-        new("Bottom of the menu", Placement.Bottom),
-        new("Where I moved it", Placement.Custom),
+        new("Default", Placement.Default),
+        new("Top", Placement.Top),
+        new("Bottom", Placement.Bottom),
+        new("Custom", Placement.Custom),
     ];
 
     public ObservableCollection<MenuItemViewModel> Items { get; } = [];
@@ -191,6 +259,7 @@ public sealed class MainViewModel : Observable
             if (!Set(ref _selectedItem, value is { IsSeparator: true } ? null : value)) return;
             Raise(nameof(HasSelection));
             Raise(nameof(HasNoSelection));
+            CommandManager.InvalidateRequerySuggested();
         }
     }
 

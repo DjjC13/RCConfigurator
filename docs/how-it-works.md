@@ -13,6 +13,7 @@ RCConfigurator has three parts: a probe that reads menus, an editor that turns y
 |---|---|
 | `RCConfigurator.Core` | The menu model, the rule model, the preview, and the config writer. No Windows-specific code. |
 | `RCConfigurator.Probe` | `rcprobe.exe`, a console program that reads one menu and prints it as JSON. |
+| `RCConfigurator.Cleanup` | Finds and removes registry entries left by uninstalled programs. |
 | `RCConfigurator.App` | The editor, a WPF app. |
 | `RCConfigurator.Tests` | Unit tests for Core, and tests that run the real probe. |
 
@@ -91,7 +92,7 @@ The arguments of a new item are written as quoted pieces joined to `sel.path`, s
 
 Rules with a wider scope are written first, so narrower rules override them.
 
-The config is written to `%LOCALAPPDATA%\RCConfigurator\shell.nss`. The engine reads its config path from the per-user registry value `HKCU\Software\Nilesoft\Shell\config` and falls back to the `shell.nss` in its own folder when that value is absent. **Apply to Explorer** sets the value and **Stop using my rules** removes it, so nothing in the engine's own folder is changed and no admin rights are needed.
+The config is written to `%LOCALAPPDATA%\RCConfigurator\shell.nss`. The engine reads its config path from the per-user registry value `HKCU\Software\Nilesoft\Shell\config` and falls back to the `shell.nss` in its own folder when that value is absent. **Apply to Explorer** sets the value and **Disable rules** removes it, so nothing in the engine's own folder is changed and no admin rights are needed.
 
 The engine code is kept behind the `Engine` class and `NssWriter`, so another engine could be supported by replacing those two.
 
@@ -105,12 +106,32 @@ Before the editor opens, the app checks three things:
 
 If a check fails, a set-up window offers to fix everything and the editor does not open until all three pass.
 
+## Cleaning up leftovers
+
+Everything else in RCConfigurator changes how menus are shown and leaves the registry's menu entries alone. The clean-up is the exception: it deletes entries that no longer work. It lives in its own project, `RCConfigurator.Cleanup`.
+
+**Finding them.** `LeftoverScanner` reads the machine-wide and per-user classes keys. For each file type it takes every action's command line, works out the program at its start (`CommandTarget`), and checks whether that file exists. An entry is dead only if the program is a full path, its drive is present, and the file is not there; anything less certain is left alone.
+
+- A type whose every action is dead, and which holds nothing but actions and an icon, is removed whole.
+- Otherwise each dead action is removed on its own. Types Windows relies on, such as `Directory` and `*`, are never removed whole.
+- A menu extension is dead when its class id is registered with a DLL path that is missing.
+- File extensions whose default type, or whose Open-with list, names a type being removed are unlinked.
+
+**Removing them.** `LeftoverRemover` first writes every affected key to a `.reg` file in the format Windows' own tools read, then deletes. It refuses any path outside the keys it is told it may change.
+
+**Administrator rights.** Per-user entries are removed by the app. For machine-wide ones the app starts a second copy of itself with `--clean` and asks Windows to elevate it. That copy is given only the list of missing programs; it scans again itself and removes only what it finds dead under the machine-wide classes key. A tampered request can therefore do no more than remove entries that are dead anyway.
+
+The per-user pass runs first, because an extension can only be recognised as pointing at a dead type while that type still exists.
+
+**At start-up.** The scan takes well under a second, so the editor runs it every time it opens and shows a notice if anything is found. Programs the user chooses to ignore are remembered in `settings.json`, beside the profile, and are left out of the notice.
+
 ## What needs administrator rights
 
-RCConfigurator runs as an ordinary user. Only two steps change the whole PC, and for those it starts a separate elevated process so that Windows asks for permission:
+RCConfigurator runs as an ordinary user. Only three things change the whole PC, and for those it starts a separate elevated process so that Windows asks for permission:
 
 - installing or updating the engine, which the Windows package manager does;
-- registering the engine, by running its own `shell.exe -register -restart -silent`.
+- registering the engine, by running its own `shell.exe -register -restart -silent`;
+- removing machine-wide leftovers, or putting them back.
 
 Everything else is per-user: the rules, the config file, the registry value that points the engine at it, and the classic-menu setting.
 
@@ -130,4 +151,5 @@ The editor accepts these command-line options, which exist for development:
 | `--show-checks` | Show the set-up window even when everything is already in place. |
 | `--show Images` | Open the editor on the file-type entry whose name starts that way. |
 | `--offline` | Do not download the public file-type lists. Not only for development: use it to keep the app off the network. |
+| `--show-cleanup` | Open only the clean-up window. |
 | `--demo` | With `--screenshot`: make a few sample changes first and write the resulting config beside the picture. |

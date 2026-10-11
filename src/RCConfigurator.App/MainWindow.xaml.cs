@@ -25,6 +25,12 @@ public partial class MainWindow : Window
             var dialog = new NewItemWindow(existing, groups, kinds) { Owner = this };
             return dialog.ShowDialog() == true ? dialog.Result : null;
         };
+        _viewModel.ShowCleanup = () =>
+        {
+            var dialog = new CleanupWindow { Owner = this };
+            dialog.ShowDialog();
+            return dialog.ChangedSomething;
+        };
         _viewModel.AskForGroups = (mine, taken) =>
         {
             var dialog = new GroupsWindow(mine, taken) { Owner = this };
@@ -51,6 +57,8 @@ public partial class MainWindow : Window
             await _viewModel.LoadOnlineFileTypesAsync(_offline);
             await _viewModel.ShowFileChoiceAsync(_showFileChoice);
         }
+
+        await _viewModel.CheckForLeftoversAsync();
 
         if (_screenshotPath is null)
         {
@@ -111,6 +119,13 @@ public partial class MainWindow : Window
     private void OnItemSelected(object sender, RoutedPropertyChangedEventArgs<object> e)
     {
         _viewModel.SelectedItem = e.NewValue as MenuItemViewModel;
+    }
+
+    private void OnOpenLink(object sender, System.Windows.Navigation.RequestNavigateEventArgs e)
+    {
+        // Opens the link in the user's own browser.
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true })?.Dispose();
+        e.Handled = true;
     }
 
     private void OnGroupPicked(object? sender, EventArgs e)

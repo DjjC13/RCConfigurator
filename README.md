@@ -12,7 +12,7 @@
 
 The Windows right-click menu is different for every kind of thing you click: a text file, a folder, a drive, the desktop. RCConfigurator shows you the real menu for each one and lets you hide, rename, reorder and regroup its items and add your own, with a live preview of the result.
 
-> **Status: beta.** It reads real menus, writes rules and applies them through [Nilesoft Shell](https://github.com/moudey/Shell). That has been used on one Windows 11 PC so far, so expect rough edges elsewhere.
+Changes are applied inside Explorer by [Nilesoft Shell](https://github.com/moudey/Shell), which RCConfigurator installs and looks after for you. It has been developed and used on Windows 11; if something misbehaves on your PC, please [open an issue](https://github.com/DjjC13/RCConfigurator/issues).
 
 ## What it does
 
@@ -21,9 +21,14 @@ The Windows right-click menu is different for every kind of thing you click: a t
 - **Edits similar file types together.** Pick a group such as Images, Videos or Code and edit one combined menu for all of its types, or make groups of your own. One more entry shows every file type on the PC at once, so an item that appears on hundreds of types is hidden or renamed in one go.
 - **Hides, renames, reorders and regroups.** Move any item up or down, pin it to the top or bottom, or collect items into submenus of your own.
 - **Adds your own items.** Give an item a name and a program to run, and choose where it appears.
+- **Cleans up after uninstalled programs.** It finds menu entries and file types whose program is no longer on the PC, tells you when it opens, and removes them from the registry for good after saving a backup that can be restored.
 - **Previews the result.** The menu you will get is shown beside the menu Windows builds.
 - **Applies with one click.** Your rules are written to a config file in your own profile, Nilesoft Shell is pointed at it, and Explorer is restarted so they take effect. RCConfigurator itself never needs to run as administrator.
 - **Looks after the engine.** It installs Nilesoft Shell, registers it with Windows and keeps it up to date, asking for permission only for the steps that need it.
+
+| Similar file types, edited together | Entries left by uninstalled programs |
+|---|---|
+| ![The Images group shown as one combined menu](docs/images/groups.png) | ![The registry clean-up window listing a missing program and what it left](docs/images/cleanup.png) |
 
 ## Getting started
 
@@ -58,11 +63,12 @@ To sort file types into groups, RCConfigurator starts with the labels Windows it
 
 The lists are downloaded whole and kept for 30 days, so nothing about your own files or file types is sent anywhere. Start the app with `--offline` to skip the downloads; the groups then hold only what Windows labels. It also asks `winget` whether Nilesoft Shell has an update.
 
-## Not done yet
+## Known limits
 
-- Rules for a whole group of file types have not been checked against a live Nilesoft Shell yet. They are written with the same test the single-type rules use.
-- Mixed selections, such as files and folders selected together.
-- Icons of your choice, and submenus inside submenus.
+- Rules match items by their title, so two programs that add items with the same title are changed together.
+- Rules for a whole group of file types are written with the same test the single-type rules use, but have had less use than the rest. Please report one that does not take effect.
+- Mixed selections, such as files and folders selected together, cannot be given their own rules.
+- Custom items cannot be given an icon of your choice, and a submenu cannot be put inside another submenu.
 
 ## Building from source
 
@@ -76,6 +82,10 @@ dotnet test
 ```
 
 Some tests run the probe against the real Windows shell, so they need a normal desktop session.
+
+## Support
+
+RCConfigurator is free and open source. If it saves you time, you can [buy me a coffee](https://buymeacoffee.com/djjc13).
 
 ## Credits
 

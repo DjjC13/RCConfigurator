@@ -141,6 +141,39 @@ public static class ProfileStore
     }
 }
 
+/// <summary>Choices about the app itself, as opposed to the menus.</summary>
+public sealed record AppSettings
+{
+    /// <summary>Missing programs whose leftovers the user has chosen not to be reminded about.</summary>
+    public IReadOnlyList<string> IgnoredLeftovers { get; init; } = [];
+}
+
+public static class SettingsStore
+{
+    // Beside the profile, so a profile opened with --profile brings its own settings.
+    private static string FilePath => Path.Combine(Path.GetDirectoryName(ProfileStore.FilePath)!, "settings.json");
+
+    public static AppSettings Load()
+    {
+        try
+        {
+            return File.Exists(FilePath)
+                ? System.Text.Json.JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(FilePath)) ?? new AppSettings()
+                : new AppSettings();
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+        {
+            return new AppSettings();
+        }
+    }
+
+    public static void Save(AppSettings settings)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
+        File.WriteAllText(FilePath, System.Text.Json.JsonSerializer.Serialize(settings));
+    }
+}
+
 /// <summary>Nilesoft Shell, the program that applies the rules inside Explorer.</summary>
 public sealed record Engine(string? Folder, string? Version)
 {

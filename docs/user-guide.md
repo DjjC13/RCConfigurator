@@ -4,6 +4,8 @@
 
 RCConfigurator needs three things before it opens the editor. It checks them every time it starts. If any is missing it shows a set-up window instead, and **Continue** stays greyed out until all three are ticked.
 
+![The set-up window with all three checks ticked](images/setup.png)
+
 1. **Nilesoft Shell is installed.** This is the program that applies your changes inside Explorer.
 2. **Windows shows the classic right-click menu.** Windows 11 normally shows a shorter menu with "Show more options" at the bottom. Your changes appear in the classic menu, so Windows needs to show that one straight away. It is a setting for your account only. Windows 10 already works this way.
 3. **Nilesoft Shell is running in Explorer.** It has to be registered with Windows, and Explorer has to have loaded it.
@@ -29,17 +31,30 @@ When the editor opens, RCConfigurator asks the Windows package manager whether a
 
 ## The window
 
-The editor has three columns.
+![The editor showing a text file's menu beside a preview of the edited result](images/editor.png)
 
-1. **When I right-click** is where you choose what was clicked: a file, several files, a folder, several folders, a drive, empty space in a folder, or empty space on the desktop. For files you also choose the file type, because Windows builds a different menu for each one. Below it, **My own items** lists the items you have added.
-2. **Windows shows this menu** is the menu Windows builds for that target right now, read live from your system. Your changes are marked on it: hidden items are struck through, and renamed or moved items carry a note.
-3. **You will get this menu** is a preview of the result once your rules are applied.
+Across the top are the commands:
 
-Tick **Include Shift-only items** to also see entries that normally appear only while you hold Shift. **Read the menu again** re-reads the menu, which is useful after you install or remove a program.
+| Command | What it does |
+|---|---|
+| **Refresh** | Reads the menu from Windows again. Use it after installing or removing a program. |
+| **File type groups…** | Lets you make your own groups of file types. |
+| **Registry clean-up…** | Removes entries left by programs that are no longer installed. |
+| **Disable rules** | Returns Nilesoft Shell to its own settings. Shown only while your rules are in use. |
+| **Apply to Explorer** | Puts your changes into effect. |
+
+Under the title, a line says which version of Nilesoft Shell is installed and whether it is using your rules.
+
+Below are four panels:
+
+- **Target**: what was right-clicked. Choose a file, several files, a folder, several folders, a drive, empty space in a folder, or empty space on the desktop. For files you also choose the file type. Tick **Include Shift-only items** to see entries that normally appear only while Shift is held.
+- **Custom items**: the items you have added yourself.
+- **Current menu**: the menu Windows builds for the target right now, read live from your system. Your changes are marked on it: hidden items are struck through, and renamed or moved items carry a note. The panel under it edits whichever item you select.
+- **Preview**: the menu you will get once your rules are applied.
 
 ## Editing similar file types together
 
-Windows builds a separate menu for every file type, and a PC has hundreds of them. You rarely want to edit them one at a time, so under **A file** the **File type** list offers three ways in.
+Windows builds a separate menu for every file type, and a PC has hundreds of them. You rarely want to edit them one at a time, so when the target is **A file**, the **File type** list offers three ways in.
 
 - **One file type.** Type or pick an extension and edit that type's menu.
 - **A group**, such as **Images (70 types)**, **Videos**, **Audio**, **Text files**, **Documents**, **Archives**, **Code**, **Fonts** or **3D models**, or one you made yourself.
@@ -53,7 +68,7 @@ Picking a group reads the menu of every type in it and shows them as one combine
 
 A change you make there starts out applying to **Every type in** that group. It affects the item wherever it appears in the group and leaves the other types alone. A rule for a single type still overrides a rule for its group.
 
-The first time you open a group it takes a few seconds to read the menus; a large group takes longer. They are remembered until you close the app or choose **Read the menu again**.
+The first time you open a group it takes a few seconds to read the menus; a large group takes longer. They are remembered until you close the app or choose **Refresh**.
 
 ### Every file type
 
@@ -70,18 +85,18 @@ Many types belong to no group, because neither Windows nor the lists say what th
 
 ### Your own groups
 
-**My groups of file types…** lets you make a group: give it a name and list its file types, such as `.psd .ai .xcf`. It then appears in the File type list like the ready-made ones. Removing a group also removes the changes that applied only to it.
+**File type groups…** lets you make a group: give it a name and list its file types, such as `.psd .ai .xcf`. It then appears in the File type list like the ready-made ones. Removing a group also removes the changes that applied only to it.
 
 ## Changing an item
 
-Select an item in the middle column. The panel underneath lets you:
+Select an item in **Current menu**. The panel underneath lets you:
 
 - **Hide** it.
 - **Rename** it.
-- **Move it into a submenu.** Type a name to create a submenu, or pick one you have already made. Several items can share a submenu.
-- **Change its position.** Pin it to the top or bottom of the menu, or use the ▲ and ▼ buttons to move it one row at a time. Moving past a separator line puts the item in the next group.
+- **Move to submenu.** Type a name to create a submenu, or pick one you have already made. Several items can share a submenu.
+- **Position.** Choose **Top** or **Bottom** to pin it to that end of the menu, or use the ▲ and ▼ buttons to move it one row at a time, which sets the position to **Custom**. Moving past a separator line puts the item in the next group. **Default** puts it back where Windows has it.
 
-**Undo changes** removes every change you made to the selected item.
+**Reset** removes every change you made to the selected item.
 
 A moved item is remembered as sitting just above or below a neighbouring item, not as a row number. It therefore stays beside that neighbour when you hide or add other items. If the neighbour does not exist in some other menu the rule applies to, the item goes to the bottom of that menu.
 
@@ -89,7 +104,7 @@ Items inside a submenu, such as the entries under 7-Zip, can be changed the same
 
 ## Choosing where a change applies
 
-Each change has a scope, set with **This change applies to**:
+Each change has a scope, set with **Applies to**:
 
 | Scope | Example |
 |---|---|
@@ -99,25 +114,66 @@ Each change has a scope, set with **This change applies to**:
 | Only several at once | Only when several files, or several folders, are selected together |
 | Everything | Everything you right-click |
 
-To make a change that applies only when several things are selected, choose **Several files** or **Several folders** on the left first. The narrower scopes are offered there.
+To make a change that applies only when several things are selected, choose **Several files** or **Several folders** as the target first. The narrower scopes are offered there.
 
 New changes start with the scope you used last, except in a group, where they start with that group. When you are looking at one file type, the groups it belongs to are offered as scopes too. When rules overlap, the narrower one wins: a rule for `.txt` files overrides a rule for its group, which overrides a rule for all files, which overrides a rule for everything.
 
 Rules match items by their title. If two programs add items with the same title, a rule affects both.
 
-## Adding your own items
+## Custom items
 
-Under **My own items**, choose **Add…** and fill in:
+In the **Custom items** panel, choose **Add…** and fill in:
 
 - **Name shown in the menu.**
 - **Program to run.** Type a path or use **Browse…**. A program on your PATH, such as `notepad.exe`, works without a full path.
 - **What to pass to it.** `%1` stands for the path of whatever you right-clicked. Keep the quotes around it so paths with spaces work.
-- **Show it when I right-click.** Any file, files of one type, a folder, a drive, empty space in a folder, empty space on the desktop, or anything.
+- **Show it when I right-click.** Any file, files of one type, files in a group, a folder, a drive, empty space in a folder, empty space on the desktop, or anything.
 - **Position** and, optionally, a **submenu** to put it in.
 
 When several things are selected, the program is run once for each of them.
 
 Select an item in the list and choose **Edit…** or **Remove** to change or delete it. Double-clicking an item also edits it.
+
+## Registry clean-up
+
+Hiding an item only stops it being shown. When a program has been uninstalled but left its menu entries and file types behind, the better fix is to remove them from the registry.
+
+### The notice at start-up
+
+Each time it opens, RCConfigurator checks for such entries. If it finds any, a notice appears across the top of the window saying how many programs have left how many entries.
+
+![The notice across the top of the editor, with Review, Ignore and a cross](images/cleanup-notice.png)
+
+- **Review…** opens the clean-up window.
+- **Ignore** stops the notice mentioning those programs again. They can still be removed later through **Registry clean-up…**.
+- The cross hides the notice until the app is next opened.
+
+### The clean-up window
+
+![The clean-up window listing a missing program and what it left behind](images/cleanup.png)
+
+**Registry clean-up…** lists each missing program with what it left:
+
+- **File types** whose every action runs the missing program.
+- **Menu items** that run it, on file types that are otherwise fine.
+- **Menu extensions** whose file is missing.
+- **Links from file extensions** that still point at one of those file types, including entries under Open with.
+
+An entry is only listed when it names a full path on a drive that is connected and no file is there. A program on an unplugged drive, or one named without a path, is never listed.
+
+Select the programs to clean up after and choose **Remove selected**. Nothing is selected by default. Most of these entries apply to the whole PC, so Windows asks for administrator permission; RCConfigurator itself stays unelevated.
+
+Removing a dead file type also unlinks the file extensions that pointed at it. Windows then falls back to whatever else can open those files, or asks you to choose a program.
+
+### Restoring
+
+Before anything is removed, it is saved to `%LOCALAPPDATA%\RCConfigurator\backups` as ordinary `.reg` files, one for your own entries and one for the whole PC's. **Restore last backup** imports the most recent ones again. You can also double-click a backup file yourself.
+
+### What it will not do
+
+- It does not remove entries of programs that are still installed. Use **Hide** for those, or the program's own settings.
+- It does not change which program is your chosen default for a file type.
+- An entry Windows protects is skipped and reported, not forced.
 
 ## Applying your changes
 
@@ -125,17 +181,17 @@ Changes are saved as you make them, but Explorer does not use them until you cho
 
 Applying restarts Explorer, because the engine only reads its rules when Explorer starts. The taskbar disappears for a second or two and comes back, and any open folder windows close. Your other programs are not affected.
 
-The top right of the window shows whether the engine is installed and whether it is using your rules.
-
 ## Going back
 
-- **Stop using my rules** returns Nilesoft Shell to its own settings and restarts Explorer.
+- **Reset** on a selected item removes your changes to that item.
+- **Disable rules** returns Nilesoft Shell to its own settings and restarts Explorer.
 - To remove the engine, uninstall it: `winget uninstall Nilesoft.Shell`.
 - To return to the Windows 11 menu, delete the setting the set-up window added, then sign out and back in:
 
   ```
   reg delete "HKCU\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}" /f
   ```
+
 - Holding Ctrl and the Windows key while you right-click turns the engine off and shows the classic Windows menu. Holding Ctrl while you right-click turns it back on.
 
 ## Where things are kept
@@ -143,13 +199,15 @@ The top right of the window shows whether the engine is installed and whether it
 | What | Where |
 |---|---|
 | Your rules | `%APPDATA%\RCConfigurator\profile.json` |
+| Your choices about the app, such as ignored clean-up notices | `%APPDATA%\RCConfigurator\settings.json` |
 | The config written for the engine | `%LOCALAPPDATA%\RCConfigurator\shell.nss` |
 | Sample files the probe right-clicks | `%LOCALAPPDATA%\RCConfigurator\samples` (one empty file per type you have looked at) |
 | The public file-type lists | `%LOCALAPPDATA%\RCConfigurator\file-type-lists` |
+| Backups made by clean-ups | `%LOCALAPPDATA%\RCConfigurator\backups` |
 | The setting that points the engine at the config | `HKCU\Software\Nilesoft\Shell`, value `config` |
 | The classic-menu setting | `HKCU\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32` |
 
-Deleting the first four resets RCConfigurator. RCConfigurator itself writes nothing outside your own user profile; installing Nilesoft Shell is a normal program install.
+Deleting the files and folders above resets RCConfigurator. Apart from a clean-up you ask for, RCConfigurator writes nothing outside your own user profile; installing Nilesoft Shell is a normal program install.
 
 ## Troubleshooting
 
@@ -157,10 +215,10 @@ Deleting the first four resets RCConfigurator. RCConfigurator itself writes noth
 
 **Explorer did not come back after applying.** Press Ctrl+Shift+Esc to open Task Manager, choose **Run new task**, type `explorer` and press Enter.
 
-**I was running RCConfigurator or Nilesoft Shell as administrator to make it work.** That is no longer needed. Earlier betas left you to restart Explorer yourself, and Nilesoft Shell's own tool for that insists on administrator rights.
+**I was running RCConfigurator or Nilesoft Shell as administrator to make it work.** That is not needed. The first test versions left you to restart Explorer yourself, and Nilesoft Shell's own tool for that insists on administrator rights. RCConfigurator now restarts Explorer for you.
 
-**"Could not read the menu."** A shell extension may have stalled or crashed while the menu was being read. Choose **Read the menu again**. If one target always fails, a program that adds items to that menu is the likely cause.
+**"Could not read the menu."** A shell extension may have stalled or crashed while the menu was being read. Choose **Refresh**. If one target always fails, a program that adds items to that menu is the likely cause.
 
-**An item is missing from the middle column.** The editor shows the classic menu, the one behind "Show more options" on Windows 11. Items that exist only in the Windows 11 menu do not appear, and the engine replaces that menu anyway.
+**An item is missing from Current menu.** The editor shows the classic menu, the one behind "Show more options" on Windows 11. Items that exist only in the Windows 11 menu do not appear, and the engine replaces that menu anyway.
 
 **A rule does not match on other files.** Some titles include the name of what you clicked, such as `Add to "report.zip"`. The editor matches those by the part before the name. If a title is built some other way, the rule may only match the sample file.

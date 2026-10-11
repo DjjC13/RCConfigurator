@@ -19,6 +19,7 @@
     <ProjectReference Include="..\..\src\RCConfigurator.Core\RCConfigurator.Core.csproj" />
     <!-- Referenced so rcprobe.exe is copied next to the tests, which run it as a separate process. -->
     <ProjectReference Include="..\..\src\RCConfigurator.Probe\RCConfigurator.Probe.csproj" />
+    <ProjectReference Include="..\..\src\RCConfigurator.Cleanup\RCConfigurator.Cleanup.csproj" />
   </ItemGroup>
 
 </Project>
