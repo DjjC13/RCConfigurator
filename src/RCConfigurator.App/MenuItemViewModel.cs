@@ -7,6 +7,9 @@ public sealed class MenuItemViewModel : Observable
 {
     // A prefix shorter than this would match too many unrelated items.
     private const int MinimumPrefixLength = 3;
+    private const int MaxTypesListed = 60;
+
+    private readonly string _coverage = "";
 
     private readonly Action<MenuItemViewModel, Scope> _changed;
     private readonly Func<MenuItemViewModel, (string Anchor, bool After)?> _currentNeighbour;
@@ -28,13 +31,22 @@ public sealed class MenuItemViewModel : Observable
         string sampleName,
         Scope defaultScope,
         Action<MenuItemViewModel, Scope> changed,
-        Func<MenuItemViewModel, (string Anchor, bool After)?> currentNeighbour)
+        Func<MenuItemViewModel, (string Anchor, bool After)?> currentNeighbour,
+        IReadOnlyList<string>? seenOn = null,
+        int typeCount = 1)
     {
         Entry = entry;
         ParentPath = parentPath;
         _scope = defaultScope;
         _changed = changed;
         _currentNeighbour = currentNeighbour;
+
+        // When a group of file types is shown, say so where an item is only on some of them.
+        if (seenOn is not null)
+        {
+            if (seenOn.Count < typeCount) _coverage = $"on {seenOn.Count} of {typeCount} types";
+            SeenOn = "Found on: " + string.Join(' ', seenOn.Take(MaxTypesListed)) + (seenOn.Count > MaxTypesListed ? " …" : "");
+        }
 
         // Some titles include the name of what was clicked, as in Add to "sample.zip". Those are
         // matched by the part before the name so the rule still works on other files.
@@ -74,6 +86,9 @@ public sealed class MenuItemViewModel : Observable
 
     public bool IsShown => !_isHidden;
 
+    /// <summary>The file types this item was found on, when a group of types is shown. Used as a tooltip.</summary>
+    public string? SeenOn { get; }
+
     /// <summary>True when the item can be moved up and down: it is shown and still in its own menu.</summary>
     public bool CanBeMoved => !_isHidden && _group.Length == 0;
 
@@ -82,14 +97,21 @@ public sealed class MenuItemViewModel : Observable
     {
         get
         {
-            if (_isHidden) return "hidden";
-
             var notes = new List<string>();
-            if (_newTitle.Length > 0) notes.Add($"was {OriginalTitle}");
-            if (_group.Length > 0) notes.Add($"moved into {_group}");
-            else if (_placement == Placement.Top) notes.Add("pinned to top");
-            else if (_placement == Placement.Bottom) notes.Add("pinned to bottom");
-            else if (_placement == Placement.Custom) notes.Add("moved");
+            if (_isHidden)
+            {
+                notes.Add("hidden");
+            }
+            else
+            {
+                if (_newTitle.Length > 0) notes.Add($"was {OriginalTitle}");
+                if (_group.Length > 0) notes.Add($"moved into {_group}");
+                else if (_placement == Placement.Top) notes.Add("pinned to top");
+                else if (_placement == Placement.Bottom) notes.Add("pinned to bottom");
+                else if (_placement == Placement.Custom) notes.Add("moved");
+            }
+
+            if (_coverage.Length > 0) notes.Add(_coverage);
             return string.Join(", ", notes);
         }
     }

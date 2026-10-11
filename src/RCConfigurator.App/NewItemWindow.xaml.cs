@@ -10,17 +10,6 @@ public partial class NewItemWindow : Window
 {
     private const string DefaultArguments = "\"" + NewItem.PathPlaceholder + "\"";
 
-    private static readonly IReadOnlyList<Choice<ScopeKind?>> Scopes =
-    [
-        new("Any file", ScopeKind.File),
-        new("Files of one type", null),
-        new("A folder", ScopeKind.Folder),
-        new("A drive", ScopeKind.Drive),
-        new("Empty space in a folder", ScopeKind.FolderBackground),
-        new("Empty space on the desktop", ScopeKind.Desktop),
-        new("Anything", ScopeKind.Everywhere),
-    ];
-
     private static readonly IReadOnlyList<Choice<Placement>> Placements =
     [
         new("Middle of the menu", Placement.Default),
@@ -28,10 +17,24 @@ public partial class NewItemWindow : Window
         new("Bottom of the menu", Placement.Bottom),
     ];
 
-    public NewItemWindow(NewItem? existing, IReadOnlyList<string> groups)
+    // The entry with no scope of its own is "Files of one type", which takes its type from the box beside it.
+    private readonly List<Choice<Scope?>> _scopes;
+
+    public NewItemWindow(NewItem? existing, IReadOnlyList<string> groups, IReadOnlyList<FileKind> kinds)
     {
         InitializeComponent();
-        ScopeBox.ItemsSource = Scopes;
+        _scopes =
+        [
+            new("Any file", Scope.ForFile(null)),
+            new("Files of one type", null),
+            .. kinds.Select(k => new Choice<Scope?>($"Files in {k.Name}", Scope.ForGroup(k.Name))),
+            new("A folder", new Scope(ScopeKind.Folder)),
+            new("A drive", new Scope(ScopeKind.Drive)),
+            new("Empty space in a folder", new Scope(ScopeKind.FolderBackground)),
+            new("Empty space on the desktop", new Scope(ScopeKind.Desktop)),
+            new("Anything", Scope.Everywhere),
+        ];
+        ScopeBox.ItemsSource = _scopes;
         PlacementBox.ItemsSource = Placements;
         GroupBox.ItemsSource = groups;
 
@@ -42,11 +45,10 @@ public partial class NewItemWindow : Window
         GroupBox.Text = existing?.Group ?? "";
         PlacementBox.SelectedItem = Placements.FirstOrDefault(p => p.Value == existing?.Placement) ?? Placements[0];
 
-        // "Files of one type" is the entry with no kind of its own.
-        var scope = existing?.Scope ?? Scope.ForFile(null);
-        ScopeBox.SelectedItem = scope is { Kind: ScopeKind.File, Extension: not null }
-            ? Scopes[1]
-            : Scopes.First(s => s.Value == scope.Kind);
+        var scope = (existing?.Scope ?? Scope.ForFile(null)) with { Count = SelectionCount.Any };
+        ScopeBox.SelectedItem = scope.Extension is not null
+            ? _scopes[1]
+            : _scopes.FirstOrDefault(s => s.Value == scope) ?? _scopes[0];
 
         Loaded += (_, _) => TitleBox.Focus();
     }
@@ -54,7 +56,7 @@ public partial class NewItemWindow : Window
     /// <summary>The item the user described, once the dialog has been saved.</summary>
     public NewItem? Result { get; private set; }
 
-    private bool IsOneFileType => ReferenceEquals(ScopeBox.SelectedItem, Scopes[1]);
+    private bool IsOneFileType => ScopeBox.SelectedItem is Choice<Scope?> { Value: null };
 
     private void OnScopeChanged(object sender, SelectionChangedEventArgs e)
     {
@@ -89,14 +91,13 @@ public partial class NewItemWindow : Window
             return;
         }
 
-        var kind = ((Choice<ScopeKind?>)ScopeBox.SelectedItem).Value;
         var group = GroupBox.Text.Replace("/", "").Trim();
         Result = new NewItem
         {
             Title = title,
             Program = program,
             Arguments = ArgumentsBox.Text.Trim(),
-            Scope = kind is null ? Scope.ForFile(extension) : new Scope(kind.Value),
+            Scope = ((Choice<Scope?>)ScopeBox.SelectedItem).Value ?? Scope.ForFile(extension),
             Placement = ((Choice<Placement>)PlacementBox.SelectedItem).Value,
             Group = group.Length > 0 ? group : null,
         };

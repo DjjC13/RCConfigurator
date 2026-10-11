@@ -31,7 +31,7 @@ public static class MenuPreview
     {
         var groups = new List<Group>();
         var level = Arrange(snapshot.Items, parentPath: "", context, profile, groups);
-        var added = profile.Items.Where(i => i.Scope.Covers(context)).ToList();
+        var added = profile.Items.Where(i => i.Scope.Covers(context, profile.Kinds)).ToList();
 
         // Added items come before moved ones inside a submenu, as the engine lists them.
         foreach (var group in profile.Groups)

@@ -59,8 +59,14 @@
                 <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0"
                             Visibility="{Binding IsFileTarget, Converter={StaticResource BoolToVisibility}}">
                     <TextBlock Text="File type" Style="{StaticResource FieldLabel}" />
+                    <StackPanel Margin="0,0,0,6" Visibility="{Binding ShowFileChoices, Converter={StaticResource BoolToVisibility}}">
+                        <ComboBox ItemsSource="{Binding FileChoices}" SelectedItem="{Binding SelectedFileChoice}" DisplayMemberPath="Label" />
+                        <Button Content="My groups of file types…" Command="{Binding ManageGroupsCommand}" Margin="0,6,0,0" HorizontalAlignment="Stretch"
+                                ToolTip="Make your own groups of file types to edit together" />
+                    </StackPanel>
                     <ComboBox IsEditable="True" ItemsSource="{Binding ExtensionPresets}"
-                              Text="{Binding Extension, UpdateSourceTrigger=PropertyChanged}" />
+                              Text="{Binding Extension, UpdateSourceTrigger=PropertyChanged}"
+                              Visibility="{Binding ShowExtension, Converter={StaticResource BoolToVisibility}}" />
                 </StackPanel>
                 <ListBox ItemsSource="{Binding Targets}" SelectedItem="{Binding SelectedTarget}" DisplayMemberPath="Label" />
             </DockPanel>
@@ -81,7 +87,7 @@
                             <Grid>
                                 <Border x:Name="Line" Height="1" Width="180" HorizontalAlignment="Left" Opacity="0.3" Visibility="Collapsed"
                                         Background="{Binding Foreground, RelativeSource={RelativeSource AncestorType=TreeViewItem}}" />
-                                <StackPanel x:Name="Row" Orientation="Horizontal">
+                                <StackPanel x:Name="Row" Orientation="Horizontal" ToolTip="{Binding SeenOn}">
                                     <TextBlock x:Name="Title" Text="{Binding Title}" />
                                     <TextBlock Text="{Binding Note}" Margin="10,0,0,0" Opacity="0.6" FontStyle="Italic" />
                                 </StackPanel>

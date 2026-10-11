@@ -9,8 +9,30 @@ namespace RCConfigurator.App;
 public static class ProbeRunner
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan BatchTimeout = TimeSpan.FromSeconds(90);
 
-    public static async Task<MenuSnapshot> RunAsync(IEnumerable<string> arguments)
+    public static async Task<MenuSnapshot> RunAsync(IEnumerable<string> arguments) =>
+        SnapshotJson.Deserialize(await RunRawAsync(arguments, Timeout));
+
+    /// <summary>
+    /// Reads a separate menu for each file in one run of the probe, which is far quicker than a
+    /// run per file. The result has one entry per file, in order; an entry is null when that
+    /// file's menu could not be read.
+    /// </summary>
+    public static async Task<IReadOnlyList<MenuSnapshot?>> RunEachAsync(IReadOnlyList<string> files, bool extended, bool submenus)
+    {
+        var arguments = new List<string> { "--each" };
+        if (extended) arguments.Add("--extended");
+        if (!submenus) arguments.Add("--no-submenus");
+        arguments.AddRange(files);
+
+        var lines = (await RunRawAsync(arguments, BatchTimeout)).Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (lines.Length != files.Count) throw new InvalidOperationException("The probe did not report every file.");
+
+        return lines.Select(SnapshotJson.Deserialize).Select(s => s.Items.Count > 0 ? s : null).ToList();
+    }
+
+    private static async Task<string> RunRawAsync(IEnumerable<string> arguments, TimeSpan allowed)
     {
         var exe = Path.Combine(AppContext.BaseDirectory, "rcprobe.exe");
         if (!File.Exists(exe)) throw new FileNotFoundException("rcprobe.exe is missing from the app's folder.", exe);
@@ -28,7 +50,7 @@ public static class ProbeRunner
         var output = process.StandardOutput.ReadToEndAsync();
         var error = process.StandardError.ReadToEndAsync();
 
-        using var timeout = new CancellationTokenSource(Timeout);
+        using var timeout = new CancellationTokenSource(allowed);
         try
         {
             await process.WaitForExitAsync(timeout.Token);
@@ -45,7 +67,7 @@ public static class ProbeRunner
             throw new InvalidOperationException(reason.Length > 0 ? reason : $"rcprobe.exe failed with code {process.ExitCode}.");
         }
 
-        return SnapshotJson.Deserialize(await output);
+        return await output;
     }
 }
 

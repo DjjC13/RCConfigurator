@@ -9,16 +9,25 @@ public partial class MainWindow : Window
     private readonly MainViewModel _viewModel = new();
     private readonly string? _screenshotPath;
     private readonly bool _demo;
+    private readonly string? _showFileChoice;
+    private readonly bool _offline;
 
-    public MainWindow(string? screenshotPath = null, bool demo = false)
+    public MainWindow(string? screenshotPath = null, bool demo = false, string? showFileChoice = null, bool offline = false)
     {
         _screenshotPath = screenshotPath;
         _demo = demo;
+        _showFileChoice = showFileChoice;
+        _offline = offline;
         InitializeComponent();
         DataContext = _viewModel;
-        _viewModel.AskForNewItem = (existing, groups) =>
+        _viewModel.AskForNewItem = (existing, groups, kinds) =>
         {
-            var dialog = new NewItemWindow(existing, groups) { Owner = this };
+            var dialog = new NewItemWindow(existing, groups, kinds) { Owner = this };
+            return dialog.ShowDialog() == true ? dialog.Result : null;
+        };
+        _viewModel.AskForGroups = (mine, taken) =>
+        {
+            var dialog = new GroupsWindow(mine, taken) { Owner = this };
             return dialog.ShowDialog() == true ? dialog.Result : null;
         };
         Loaded += OnLoaded;
@@ -31,7 +40,18 @@ public partial class MainWindow : Window
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
-        await _viewModel.RefreshAsync();
+        if (_showFileChoice is null)
+        {
+            // Show the first menu straight away; the groups fill out once the lists arrive.
+            await _viewModel.RefreshAsync();
+            await _viewModel.LoadOnlineFileTypesAsync(_offline);
+        }
+        else
+        {
+            await _viewModel.LoadOnlineFileTypesAsync(_offline);
+            await _viewModel.ShowFileChoiceAsync(_showFileChoice);
+        }
+
         if (_screenshotPath is null)
         {
             await _viewModel.UpdateEngineIfNeededAsync();
@@ -66,7 +86,7 @@ public partial class MainWindow : Window
             _viewModel.MoveUpCommand.Execute(null);
         });
 
-        _viewModel.AskForNewItem = (_, _) => new Core.NewItem
+        _viewModel.AskForNewItem = (_, _, _) => new Core.NewItem
         {
             Title = "Open in my editor",
             Program = @"C:\Tools\editor.exe",

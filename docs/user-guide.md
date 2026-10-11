@@ -37,6 +37,41 @@ The editor has three columns.
 
 Tick **Include Shift-only items** to also see entries that normally appear only while you hold Shift. **Read the menu again** re-reads the menu, which is useful after you install or remove a program.
 
+## Editing similar file types together
+
+Windows builds a separate menu for every file type, and a PC has hundreds of them. You rarely want to edit them one at a time, so under **A file** the **File type** list offers three ways in.
+
+- **One file type.** Type or pick an extension and edit that type's menu.
+- **A group**, such as **Images (70 types)**, **Videos**, **Audio**, **Text files**, **Documents**, **Archives**, **Code**, **Fonts** or **3D models**, or one you made yourself.
+- **Every file type.** All of them at once.
+
+### What a group shows
+
+![The Images group shown as one combined menu, with notes on how many types each item is on](images/groups.png)
+
+Picking a group reads the menu of every type in it and shows them as one combined menu. Types in a group seldom have identical menus, so an item that is not on all of them says how many it is on, for example *on 22 of 70 types*. Hover over it to see which.
+
+A change you make there starts out applying to **Every type in** that group. It affects the item wherever it appears in the group and leaves the other types alone. A rule for a single type still overrides a rule for its group.
+
+The first time you open a group it takes a few seconds to read the menus; a large group takes longer. They are remembered until you close the app or choose **Read the menu again**.
+
+### Every file type
+
+This reads the menu of every type registered on the PC and lists each different item once, with the items found on the most types first. It is the quickest way to tidy up: an item a program has added to hundreds of file types can be hidden or renamed in one step. The first read takes around half a minute. Submenus are not opened in this view; open one file type or a group to edit what is inside them.
+
+### Where the groups come from
+
+1. **Windows.** Windows labels many file types as image, video, audio, text, document or compressed, and those labels are used first.
+2. **Two public lists**, for types Windows does not label: [mime-db](https://github.com/jshttp/mime-db), which gives each extension's media type, and [GitHub Linguist's language list](https://github.com/github-linguist/linguist), which says which extensions hold code. This is where the **Code**, **Fonts** and **3D models** groups come from, and it adds more types to the others.
+
+The lists are downloaded whole and matched on your PC, so nothing about your files is sent anywhere. They are kept for 30 days. If they cannot be downloaded, the groups simply hold what Windows labels. Starting the app with `--offline` skips the downloads.
+
+Many types belong to no group, because neither Windows nor the lists say what they are. They can still be edited one at a time, through **Every file type**, or by putting them in a group of your own.
+
+### Your own groups
+
+**My groups of file types…** lets you make a group: give it a name and list its file types, such as `.psd .ai .xcf`. It then appears in the File type list like the ready-made ones. Removing a group also removes the changes that applied only to it.
+
 ## Changing an item
 
 Select an item in the middle column. The panel underneath lets you:
@@ -59,13 +94,14 @@ Each change has a scope, set with **This change applies to**:
 | Scope | Example |
 |---|---|
 | One file type | Only `.txt` files |
+| A group of file types | Every type in Images |
 | One kind of target | All files, or only folders, or only the desktop |
 | Only several at once | Only when several files, or several folders, are selected together |
 | Everything | Everything you right-click |
 
 To make a change that applies only when several things are selected, choose **Several files** or **Several folders** on the left first. The narrower scopes are offered there.
 
-New changes start with the scope you used last. When rules overlap, the narrower one wins: a rule for `.txt` files overrides a rule for everything.
+New changes start with the scope you used last, except in a group, where they start with that group. When you are looking at one file type, the groups it belongs to are offered as scopes too. When rules overlap, the narrower one wins: a rule for `.txt` files overrides a rule for its group, which overrides a rule for all files, which overrides a rule for everything.
 
 Rules match items by their title. If two programs add items with the same title, a rule affects both.
 
@@ -108,11 +144,12 @@ The top right of the window shows whether the engine is installed and whether it
 |---|---|
 | Your rules | `%APPDATA%\RCConfigurator\profile.json` |
 | The config written for the engine | `%LOCALAPPDATA%\RCConfigurator\shell.nss` |
-| Sample files the probe right-clicks | `%LOCALAPPDATA%\RCConfigurator\samples` |
+| Sample files the probe right-clicks | `%LOCALAPPDATA%\RCConfigurator\samples` (one empty file per type you have looked at) |
+| The public file-type lists | `%LOCALAPPDATA%\RCConfigurator\file-type-lists` |
 | The setting that points the engine at the config | `HKCU\Software\Nilesoft\Shell`, value `config` |
 | The classic-menu setting | `HKCU\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32` |
 
-Deleting the first three resets RCConfigurator. RCConfigurator itself writes nothing outside your own user profile; installing Nilesoft Shell is a normal program install.
+Deleting the first four resets RCConfigurator. RCConfigurator itself writes nothing outside your own user profile; installing Nilesoft Shell is a normal program install.
 
 ## Troubleshooting
 

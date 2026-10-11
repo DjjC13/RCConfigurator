@@ -40,24 +40,24 @@ public static class NssWriter
             {
                 nss.AppendLine($"menu(mode=\"multiple\" title={Quote(group)})");
                 nss.AppendLine("{");
-                foreach (var item in profile.Items.Where(i => IsIn(i, group))) nss.AppendLine("\t" + WriteItem(item));
+                foreach (var item in profile.Items.Where(i => IsIn(i, group) && IsUsable(i.Scope, profile))) nss.AppendLine("\t" + WriteItem(item, profile));
                 nss.AppendLine("}");
             }
         }
 
-        var ungrouped = profile.Items.Where(i => i.Group is null).ToList();
+        var ungrouped = profile.Items.Where(i => i.Group is null && IsUsable(i.Scope, profile)).ToList();
         if (ungrouped.Count > 0)
         {
             nss.AppendLine();
-            foreach (var item in ungrouped) nss.AppendLine(WriteItem(item));
+            foreach (var item in ungrouped) nss.AppendLine(WriteItem(item, profile));
         }
 
-        var active = profile.Rules.Where(r => !r.HasNoEffect).ToList();
+        var active = profile.Rules.Where(r => !r.HasNoEffect && IsUsable(r.Scope, profile)).ToList();
         if (active.Count > 0)
         {
             nss.AppendLine();
             // Later rules win, so write the widest scopes first.
-            foreach (var rule in active.OrderBy(r => r.Scope.Specificity)) nss.AppendLine(WriteRule(rule));
+            foreach (var rule in active.OrderBy(r => r.Scope.Specificity)) nss.AppendLine(WriteRule(rule, profile));
         }
 
         return nss.ToString();
@@ -66,7 +66,11 @@ public static class NssWriter
     private static bool IsIn(NewItem item, string group) =>
         string.Equals(item.Group, group, StringComparison.OrdinalIgnoreCase);
 
-    private static string WriteRule(ItemRule rule)
+    /// <summary>False for a scope naming a group of file types that no longer exists or has no types in it.</summary>
+    private static bool IsUsable(Scope scope, Profile profile) =>
+        scope.Group is null || profile.KindNamed(scope.Group) is { Extensions.Count: > 0 };
+
+    private static string WriteRule(ItemRule rule, Profile profile)
     {
         var parts = new List<string> { $"type='{TypeOf(rule.Scope)}'" };
         if (rule.Scope.Count == SelectionCount.One) parts.Add("mode=\"single\"");
@@ -76,6 +80,12 @@ public static class NssWriter
         if (rule.Scope is { Kind: ScopeKind.File, Extension: not null })
         {
             conditions.Add($"sel.file.ext=={Quote(rule.Scope.Extension)}");
+        }
+        else if (rule.Scope.Group is { } group)
+        {
+            // The same test a single-type rule uses, once per type in the group.
+            var tests = profile.KindNamed(group)!.Extensions.Select(e => $"sel.file.ext=={Quote(e)}");
+            conditions.Add($"({string.Join(" or ", tests)})");
         }
 
         // A find pattern treats | as "or", so a title containing one is compared whole instead.
@@ -104,7 +114,7 @@ public static class NssWriter
         return $"modify({string.Join(' ', parts)})";
     }
 
-    private static string WriteItem(NewItem item)
+    private static string WriteItem(NewItem item, Profile profile)
     {
         var parts = new List<string> { $"type='{TypeOf(item.Scope)}'" };
 
@@ -114,6 +124,7 @@ public static class NssWriter
         parts.Add(severalAllowed ? "mode=\"multiple\"" : "mode=\"single\"");
         if (item.Scope.Count == SelectionCount.Several) parts.Add("where=sel.count>1");
         if (item.Scope is { Kind: ScopeKind.File, Extension: not null }) parts.Add($"find={Quote(item.Scope.Extension)}");
+        else if (item.Scope.Group is { } group) parts.Add($"find={Quote(string.Join('|', profile.KindNamed(group)!.Extensions))}");
 
         parts.Add($"title={Quote(item.Title)}");
         if (item.Program.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) parts.Add($"image={Quote(item.Program)}");

@@ -15,6 +15,7 @@ internal static class Program
 
         Usage:
           rcprobe [options] <path> [<path>...]     Menu for the selected files, folders or drives
+          rcprobe [options] --each <path>...       A separate menu for each path, one JSON line per path
           rcprobe [options] --background <folder>  Menu for the empty area inside a folder
           rcprobe [options] --desktop              Menu for the empty area of the desktop
 
@@ -39,9 +40,10 @@ internal static class Program
         ProbeOptions options;
         var tree = false;
         var indent = false;
+        var each = false;
         try
         {
-            options = ParseArguments(args, out tree, out indent);
+            options = ParseArguments(args, out tree, out indent, out each);
         }
         catch (ArgumentException e)
         {
@@ -53,6 +55,8 @@ internal static class Program
         NativeMethods.OleInitialize(0);
         try
         {
+            if (each) return ReadEach(options);
+
             var snapshot = ContextMenuReader.Read(options);
             if (tree)
             {
@@ -76,10 +80,38 @@ internal static class Program
         }
     }
 
-    private static ProbeOptions ParseArguments(string[] args, out bool tree, out bool indent)
+    /// <summary>
+    /// Reads one menu per path and writes each as a line of JSON, in the order given. Loading the
+    /// shell extensions once and reusing them makes this far quicker than a run per file. A path
+    /// whose menu cannot be read still gets a line, with no items, so lines and paths stay paired.
+    /// </summary>
+    private static int ReadEach(ProbeOptions options)
+    {
+        foreach (var path in options.Paths)
+        {
+            var single = options with { Paths = [path] };
+            MenuSnapshot snapshot;
+            try
+            {
+                snapshot = ContextMenuReader.Read(single);
+            }
+            catch (Exception e)
+            {
+                Console.Error.WriteLine($"{path}: {e.Message}");
+                snapshot = new MenuSnapshot { Kind = TargetKind.Items, Paths = [path], ExtendedVerbs = options.ExtendedVerbs };
+            }
+
+            Console.WriteLine(SnapshotJson.Serialize(snapshot));
+        }
+
+        return ExitOk;
+    }
+
+    private static ProbeOptions ParseArguments(string[] args, out bool tree, out bool indent, out bool each)
     {
         tree = false;
         indent = false;
+        each = false;
         var background = false;
         var desktop = false;
         var extended = false;
@@ -96,6 +128,7 @@ internal static class Program
                 case "--no-submenus": expandSubmenus = false; break;
                 case "--tree": tree = true; break;
                 case "--indent": indent = true; break;
+                case "--each": each = true; break;
                 default:
                     if (arg.StartsWith("--")) throw new ArgumentException($"Unknown option '{arg}'.");
                     paths.Add(Path.GetFullPath(arg));
@@ -124,7 +157,7 @@ internal static class Program
 
         // Explorer can only select several items together when they sit in the same folder.
         var parent = Path.GetDirectoryName(paths[0]);
-        if (paths.Any(p => !string.Equals(Path.GetDirectoryName(p), parent, StringComparison.OrdinalIgnoreCase)))
+        if (!each && paths.Any(p => !string.Equals(Path.GetDirectoryName(p), parent, StringComparison.OrdinalIgnoreCase)))
         {
             throw new ArgumentException("When several paths are given they must all be in the same folder.");
         }

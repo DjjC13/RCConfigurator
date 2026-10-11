@@ -477,3 +477,296 @@ public class OrderingAndNewItemTests
         items.Select(i => i.IsSeparator ? "-" : i.Title!).ToArray();
 }
 
+public class FileKindTests
+{
+    private static readonly FileKind Images = new() { Name = "Images", Extensions = [".jpg", ".png", ".gif"], IsBuiltIn = true };
+
+    private static readonly MenuSnapshot Menu = new()
+    {
+        Items = [Item("Open"), Item("Edit with Photos"), Item("Print")],
+    };
+
+    [Fact]
+    public void A_group_rule_covers_the_group_and_each_type_in_it()
+    {
+        var scope = Scope.ForGroup("Images");
+
+        Assert.True(scope.Covers(Scope.ForGroup("images", SelectionCount.One), [Images]));
+        Assert.True(scope.Covers(Scope.ForFile(".PNG", SelectionCount.One), [Images]));
+        Assert.False(scope.Covers(Scope.ForFile(".txt", SelectionCount.One), [Images]));
+        Assert.False(scope.Covers(new Scope(ScopeKind.Folder, Count: SelectionCount.One), [Images]));
+    }
+
+    [Fact]
+    public void A_rule_for_one_type_does_not_cover_the_whole_group()
+    {
+        Assert.False(Scope.ForFile(".jpg").Covers(Scope.ForGroup("Images", SelectionCount.One), [Images]));
+        Assert.True(Scope.ForFile(null).Covers(Scope.ForGroup("Images", SelectionCount.One), [Images]));
+    }
+
+    [Fact]
+    public void Scopes_narrow_from_everything_to_all_files_to_a_group_to_one_type()
+    {
+        Assert.True(Scope.Everywhere.Specificity < Scope.ForFile(null).Specificity);
+        Assert.True(Scope.ForFile(null).Specificity < Scope.ForGroup("Images").Specificity);
+        Assert.True(Scope.ForGroup("Images").Specificity < Scope.ForFile(".jpg").Specificity);
+    }
+
+    [Fact]
+    public void A_group_rule_reaches_a_member_type_and_a_type_rule_overrides_it()
+    {
+        var profile = new Profile()
+            .WithKind(Images)
+            .With(new ItemRule { Name = "Edit with Photos", Scope = Scope.ForGroup("Images"), NewTitle = "Photos" })
+            .With(new ItemRule { Name = "Edit with Photos", Scope = Scope.ForFile(".gif"), NewTitle = "Animate" });
+
+        Assert.Equal("Photos", profile.EffectiveRule("Edit with Photos", "", Scope.ForFile(".jpg", SelectionCount.One))!.NewTitle);
+        Assert.Equal("Animate", profile.EffectiveRule("Edit with Photos", "", Scope.ForFile(".gif", SelectionCount.One))!.NewTitle);
+        Assert.Null(profile.EffectiveRule("Edit with Photos", "", Scope.ForFile(".txt", SelectionCount.One)));
+    }
+
+    [Fact]
+    public void A_group_rule_shows_in_the_preview_of_the_group()
+    {
+        var profile = new Profile().WithKind(Images).With(new ItemRule { Name = "Print", Scope = Scope.ForGroup("Images"), Hidden = true });
+
+        var preview = MenuPreview.Build(Menu, Scope.ForGroup("Images", SelectionCount.One), profile);
+
+        Assert.Equal(["Open", "Edit with Photos"], preview.Select(i => i.Title));
+    }
+
+    [Fact]
+    public void A_group_rule_is_written_as_a_list_of_extensions()
+    {
+        var profile = new Profile().WithKind(Images).With(new ItemRule { Name = "Print", Scope = Scope.ForGroup("Images"), Hidden = true });
+
+        Assert.Contains(
+            "modify(type='file' where=(sel.file.ext==\".jpg\" or sel.file.ext==\".png\" or sel.file.ext==\".gif\") find=\"\\\"print\\\"\" vis=vis.remove)",
+            NssWriter.Write(profile));
+    }
+
+    [Fact]
+    public void A_new_item_for_a_group_lists_its_extensions()
+    {
+        var profile = new Profile().WithKind(Images).WithItem(new NewItem { Title = "Resize", Program = "resize.cmd", Scope = Scope.ForGroup("Images") });
+
+        Assert.Contains("item(type='file' mode=\"multiple\" find=\".jpg|.png|.gif\" title=\"Resize\" cmd=\"resize.cmd\" invoke=\"multiple\")", NssWriter.Write(profile));
+    }
+
+    [Fact]
+    public void Rules_for_a_group_that_is_gone_are_left_out_of_the_config()
+    {
+        var profile = new Profile().With(new ItemRule { Name = "Print", Scope = Scope.ForGroup("Vanished"), Hidden = true });
+
+        Assert.DoesNotContain("modify(", NssWriter.Write(profile));
+    }
+
+    [Fact]
+    public void Removing_a_group_removes_what_was_scoped_to_it()
+    {
+        var profile = new Profile()
+            .WithKind(Images)
+            .With(new ItemRule { Name = "Print", Scope = Scope.ForGroup("Images"), Hidden = true })
+            .With(new ItemRule { Name = "Open", Hidden = true })
+            .WithoutKind("images");
+
+        Assert.Empty(profile.Kinds);
+        Assert.Equal("Open", Assert.Single(profile.Rules).Name);
+    }
+
+    [Fact]
+    public void A_profile_with_groups_survives_a_round_trip()
+    {
+        var profile = new Profile().WithKind(Images).With(new ItemRule { Name = "Print", Scope = Scope.ForGroup("Images"), Hidden = true });
+
+        var copy = ProfileJson.Deserialize(ProfileJson.Serialize(profile));
+
+        Assert.Equal(Images.Extensions, Assert.Single(copy.Kinds).Extensions);
+        Assert.True(copy.Kinds[0].IsBuiltIn);
+        Assert.Equal(profile.Rules, copy.Rules);
+    }
+
+    private static MenuEntry Item(string title) => new() { Text = title, RawText = title };
+}
+
+public class MenuMergeTests
+{
+    private static readonly MenuSnapshot Jpg = Menu("Open", "Edit with Photos", "-", "Rotate", "Print", "-", "Properties");
+    private static readonly MenuSnapshot Gif = Menu("Open", "-", "Print", "Play", "-", "Properties");
+    private static readonly MenuSnapshot Bmp = Menu("Open", "Edit with Paint", "-", "Properties");
+
+    [Fact]
+    public void Every_item_appears_once_in_the_order_of_the_fullest_menu()
+    {
+        var combined = MenuMerge.Combine([(".gif", Gif), (".jpg", Jpg), (".bmp", Bmp)]);
+
+        Assert.Equal(
+            ["Open", "Edit with Paint", "Edit with Photos", "-", "Rotate", "Print", "Play", "-", "Properties"],
+            Titles(combined.Menu.Items));
+        Assert.Equal(3, combined.TypeCount);
+    }
+
+    [Fact]
+    public void The_commonest_menu_sets_the_order_and_an_odd_first_item_sits_below_its_next_neighbour()
+    {
+        var usual = Menu("Open", "Edit", "-", "Print", "Properties");
+        var odd = Menu("Mount", "Burn", "Print", "Eject", "Properties", "Extra one", "Extra two");
+
+        var combined = MenuMerge.Combine([(".iso", odd), (".a", usual), (".b", usual)]);
+
+        Assert.Equal(
+            ["Open", "Edit", "-", "Print", "Mount", "Burn", "Eject", "Properties", "Extra one", "Extra two"],
+            Titles(combined.Menu.Items));
+    }
+
+    [Fact]
+    public void Each_item_records_the_types_it_was_seen_on()
+    {
+        var combined = MenuMerge.Combine([(".jpg", Jpg), (".gif", Gif), (".bmp", Bmp)]);
+
+        Assert.Equal([".jpg", ".gif", ".bmp"], SeenOn(combined, "Open"));
+        Assert.Equal([".jpg", ".gif"], SeenOn(combined, "Print"));
+        Assert.Equal([".gif"], SeenOn(combined, "Play"));
+        Assert.Equal([".bmp"], SeenOn(combined, "Edit with Paint"));
+    }
+
+    [Fact]
+    public void Submenus_are_combined_too()
+    {
+        var first = new MenuSnapshot { Items = [Submenu("Open with", "Paint", "Photos")] };
+        var second = new MenuSnapshot { Items = [Submenu("Open with", "Photos", "Browser")] };
+
+        var combined = MenuMerge.Combine([(".a", first), (".b", second)]);
+
+        var openWith = Assert.Single(combined.Menu.Items);
+        Assert.Equal(["Paint", "Photos", "Browser"], Titles(openWith.Children));
+        Assert.Equal([".a", ".b"], combined.SeenOn[openWith.Children[1]]);
+        Assert.Equal([".b"], combined.SeenOn[openWith.Children[2]]);
+    }
+
+    [Fact]
+    public void Titles_are_matched_the_way_the_engine_matches_them()
+    {
+        var first = new MenuSnapshot { Items = [new MenuEntry { Text = "Print", RawText = "&Print" }] };
+        var second = new MenuSnapshot { Items = [new MenuEntry { Text = "Print", RawText = "print..." }] };
+
+        var combined = MenuMerge.Combine([(".a", first), (".b", second)]);
+
+        Assert.Equal([".a", ".b"], combined.SeenOn[Assert.Single(combined.Menu.Items)]);
+    }
+
+    private static IReadOnlyList<string> SeenOn(CombinedMenu combined, string title) =>
+        combined.SeenOn[combined.Menu.Items.Single(i => i.Text == title)];
+
+    private static MenuSnapshot Menu(params string[] titles) => new()
+    {
+        Items = titles.Select(t => t == "-" ? new MenuEntry { IsSeparator = true } : new MenuEntry { Text = t, RawText = t }).ToList(),
+    };
+
+    private static MenuEntry Submenu(string title, params string[] children) => new()
+    {
+        Text = title,
+        RawText = title,
+        IsSubmenu = true,
+        Children = children.Select(c => new MenuEntry { Text = c, RawText = c }).ToList(),
+    };
+
+    private static string[] Titles(IEnumerable<MenuEntry> items) =>
+        items.Select(i => i.IsSeparator ? "-" : i.Text!).ToArray();
+}
+
+public class FileTypeCatalogueTests
+{
+    private const string MimeDb = """
+        {
+          "image/vnd.adobe.photoshop": { "source": "iana", "extensions": ["psd"] },
+          "audio/x-caf": { "source": "apache", "extensions": ["caf"] },
+          "video/mp2t": { "source": "iana", "extensions": ["ts", "m2ts"] },
+          "font/otf": { "source": "iana", "extensions": ["otf"] },
+          "application/x-msaccess": { "source": "apache", "extensions": ["mdb"] },
+          "text/x-handlebars-template": { "extensions": ["hbs"] },
+          "application/no-extensions": { "source": "iana" }
+        }
+        """;
+
+    private const string Linguist = """
+        # A comment
+        ---
+        TypeScript:
+          type: programming
+          color: "#3178c6"
+          aliases:
+          - ts
+          extensions:
+          - ".ts"
+          - ".cts"
+          interpreters:
+          - deno
+          language_id: 378
+        Handlebars:
+          type: markup
+          extensions:
+          - ".handlebars"
+          - ".hbs"
+        EditorConfig:
+          type: data
+          extensions:
+          - ".editorconfig"
+        """;
+
+    private static readonly IReadOnlyDictionary<string, string> MediaTypes = FileTypeCatalogue.ParseMimeDb(MimeDb);
+    private static readonly IReadOnlyDictionary<string, string> LanguageTypes = FileTypeCatalogue.ParseLinguist(Linguist);
+
+    [Fact]
+    public void Mime_db_maps_extensions_to_media_types()
+    {
+        Assert.Equal("image/vnd.adobe.photoshop", MediaTypes[".psd"]);
+        Assert.Equal("video/mp2t", MediaTypes[".M2TS"]);
+        Assert.Equal(7, MediaTypes.Count);
+    }
+
+    [Fact]
+    public void Linguist_maps_extensions_to_language_types_and_ignores_other_lists()
+    {
+        Assert.Equal("programming", LanguageTypes[".ts"]);
+        Assert.Equal("programming", LanguageTypes[".cts"]);
+        Assert.Equal("markup", LanguageTypes[".hbs"]);
+        Assert.Equal("data", LanguageTypes[".editorconfig"]);
+        Assert.Equal(5, LanguageTypes.Count);
+    }
+
+    [Theory]
+    [InlineData(".psd", "Images")]
+    [InlineData(".caf", "Audio")]
+    [InlineData(".m2ts", "Videos")]
+    [InlineData(".otf", "Fonts")]
+    [InlineData(".ts", "Code")]
+    [InlineData(".hbs", "Code")]
+    [InlineData(".editorconfig", "Text files")]
+    [InlineData(".mdb", null)]
+    [InlineData(".nothing", null)]
+    public void A_type_goes_to_the_group_the_lists_put_it_in(string extension, string? expected)
+    {
+        Assert.Equal(expected, FileTypeCatalogue.GroupFor(extension, MediaTypes, LanguageTypes));
+    }
+
+    [Fact]
+    public void Types_Windows_labels_stay_put_and_the_rest_are_added()
+    {
+        FileKind[] windows =
+        [
+            new() { Name = "Images", Extensions = [".png"], IsBuiltIn = true },
+            // Windows calls .ts a video on this imaginary PC, so it must not move to Code.
+            new() { Name = "Videos", Extensions = [".ts"], IsBuiltIn = true },
+        ];
+
+        var kinds = FileTypeCatalogue.Extend(windows, [".png", ".ts", ".psd", ".cts", ".caf", ".mdb"], MediaTypes, LanguageTypes);
+
+        Assert.Equal(["Images", "Videos", "Code", "Audio"], kinds.Select(k => k.Name));
+        Assert.Equal([".png", ".psd"], kinds[0].Extensions);
+        Assert.Equal([".ts"], kinds[1].Extensions);
+        Assert.Equal([".cts"], kinds[2].Extensions);
+        Assert.All(kinds, k => Assert.True(k.IsBuiltIn));
+    }
+}
+

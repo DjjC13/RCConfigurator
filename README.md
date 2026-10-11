@@ -12,12 +12,13 @@
 
 The Windows right-click menu is different for every kind of thing you click: a text file, a folder, a drive, the desktop. RCConfigurator shows you the real menu for each one and lets you hide, rename, reorder and regroup its items and add your own, with a live preview of the result.
 
-> **Status: early.** The editor reads real menus and writes rules. Applying those rules inside Explorer relies on [Nilesoft Shell](https://github.com/moudey/Shell), and that last step has not been tested against a live install yet. Expect rough edges.
+> **Status: beta.** It reads real menus, writes rules and applies them through [Nilesoft Shell](https://github.com/moudey/Shell). That has been used on one Windows 11 PC so far, so expect rough edges elsewhere.
 
 ## What it does
 
 - **Reads the real menu.** It asks Windows for the menu it would show, including submenus and Shift-only items, so you see every entry your installed programs add.
 - **Edits by context.** A change can apply to one file type, to one kind of target (all files, folders, drives, folder backgrounds, the desktop), only when several things are selected, or to everything you right-click.
+- **Edits similar file types together.** Pick a group such as Images, Videos or Code and edit one combined menu for all of its types, or make groups of your own. One more entry shows every file type on the PC at once, so an item that appears on hundreds of types is hidden or renamed in one go.
 - **Hides, renames, reorders and regroups.** Move any item up or down, pin it to the top or bottom, or collect items into submenus of your own.
 - **Adds your own items.** Give an item a name and a program to run, and choose where it appears.
 - **Previews the result.** The menu you will get is shown beside the menu Windows builds.
@@ -48,9 +49,18 @@ Then make your changes and choose **Apply to Explorer**. Explorer restarts by it
 - [User guide](docs/user-guide.md): using the editor, applying and undoing changes, troubleshooting.
 - [How it works](docs/how-it-works.md): the probe, the rule model, and how rules become an engine config.
 
+## What it downloads
+
+To sort file types into groups, RCConfigurator starts with the labels Windows itself gives them. For types Windows does not label, it downloads two public lists and matches against them on your PC:
+
+- [mime-db](https://github.com/jshttp/mime-db), which maps file extensions to IANA media types;
+- [GitHub Linguist's language list](https://github.com/github-linguist/linguist), which says which extensions hold code.
+
+The lists are downloaded whole and kept for 30 days, so nothing about your own files or file types is sent anywhere. Start the app with `--offline` to skip the downloads; the groups then hold only what Windows labels. It also asks `winget` whether Nilesoft Shell has an update.
+
 ## Not done yet
 
-- A live test of the generated config against Nilesoft Shell. Everything up to that point is tested.
+- Rules for a whole group of file types have not been checked against a live Nilesoft Shell yet. They are written with the same test the single-type rules use.
 - Mixed selections, such as files and folders selected together.
 - Icons of your choice, and submenus inside submenus.
 
